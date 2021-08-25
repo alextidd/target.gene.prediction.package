@@ -2,7 +2,6 @@
 
 export(import_BEDPE_to_List)
 export(import_BED_to_GRanges)
-export(import_variants_GRanges)
 export(overlap_variants)
 importFrom(dplyr,"%>%")
 importFrom(rlang,.data)
