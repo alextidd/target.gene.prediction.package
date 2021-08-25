@@ -1,13 +1,24 @@
 Package: target.gene.prediction.package
-Title: What the Package Does (One Line, Title Case)
+Title: Target Gene Prediction
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Alexandra",
+           family = "Tidd",
            role = c("aut", "cre"),
-           email = "first.last@example.com",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: What license it uses
+           email = "Alexandra.Tidd@qimrberghofer.edu.au")
+Description: Target Gene Prediction
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
+RoxygenNote: 7.1.1
+Imports: 
+    GenomicRanges,
+    IRanges,
+    plyranges,
+    rlang
+Depends:
+    R (>= 2.10),
+    dplyr
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
