@@ -5,11 +5,11 @@
 \alias{remap}
 \title{ReMap TFBSs (internal data example)}
 \format{
-A GRanges object with 118576 ranges and 3 metadata columns:
+A tibble BED object with 118576 ranges and 3 metadata columns:
 \describe{
-  \item{seqnames}{chromosome}
-  \item{ranges}{start-end}
-  \item{strand}{*/+/-}
+  \item{chrom}{chromosome}
+  \item{start}{start position}
+  \item{end}{end position}
   \item{Experiment}{Accession number of experiment from which the data was generated (e.g. GENCODE)}
   \item{TranscriptionFactor}{Transcription factor assayed}
   \item{CellType}{Cell type assayed}
@@ -22,6 +22,6 @@ A GRanges object with 118576 ranges and 3 metadata columns:
 remap
 }
 \description{
-A GRanges object imported from BED files of the transcription factor binding sites from different ReMap 2020 experiments
+A valr-compatible tibble BED object imported from BED files of the transcription factor binding sites from different ReMap 2020 experiments
 }
 \keyword{datasets}

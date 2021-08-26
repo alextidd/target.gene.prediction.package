@@ -6,7 +6,7 @@ Authors@R:
            family = "Tidd",
            role = c("aut", "cre"),
            email = "Alexandra.Tidd@qimrberghofer.edu.au")
-Description: Target Gene Prediction
+Description: This Target Gene Prediction package links enhancer-resident variants to their putative target gene.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -14,11 +14,13 @@ RoxygenNote: 7.1.1
 Imports: 
     GenomicRanges,
     IRanges,
+    magrittr,
     plyranges,
-    rlang
+    rlang,
+    dplyr,
+    utils
 Depends:
-    R (>= 2.10),
-    dplyr
+    R (>= 2.10)
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

@@ -7,13 +7,14 @@
 import_BEDPE_to_List(bedpefile, metadata_cols = NULL)
 }
 \arguments{
-\item{metadata_cols}{A character vector of the names of metadata columns (bedfile cols 4+) in the BED file}
+\item{bedpefile}{A tab-delimited file in bedpe format with columns: chromA, startA, endA, chromB, startB, endB, ...(metadata cols)...}
 
-\item{bedfile}{A tab-delimited file in bedpe format with columns: chrA, startA, stopA, chrB, startB, stopB, ...(metadata cols)...}
+\item{metadata_cols}{A character vector of the names of metadata columns (bedfile cols 4+) in the BED file}
 }
 \value{
-A paired (first + last) list object representation of the BEDPE file with an ID column matching pairs, optionally with metadata columns
+A paired (first + last) list representation of the BEDPE file as two valr-compatible tibble BEDs with an ID column matching pairs, optionally with metadata columns
 }
 \description{
-Import a paired-end BEDPE file as a list object c(dataframe of first end, dataframe of last end)
+Import a paired-end BEDPE file as a list object c(tibble BED of first end, tibble BED of last end).
+The direction / grouping of first and last ends is arbitrary.
 }

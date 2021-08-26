@@ -5,11 +5,11 @@
 \alias{bins}
 \title{DHSs binned by H3K27ac/H3K4me1 mark signal/specificity (internal data example)}
 \format{
-A GRanges object with 5369 ranges and 4 metadata columns:
+A tibble BED object with 5369 ranges and 4 metadata columns:
 \describe{
-  \item{seqnames}{chromosome}
-  \item{ranges}{start-end}
-  \item{strand}{*/+/-}
+  \item{chrom}{chromosome}
+  \item{start}{start position}
+  \item{end}{end position}
   \item{CellType}{Cell type assayed}
   \item{Mark}{Histone modification mark assayed}
   \item{Bin}{What bin does this DHS rank in, according to the signal/specificity level of its marks?}
@@ -24,7 +24,7 @@ A GRanges object with 5369 ranges and 4 metadata columns:
 bins
 }
 \description{
-A GRanges object imported from BED files of the DHSs binned by H3K27ac/H3K4me1 mark signal/specificity for each cell type
+A valr-compatible tibble BED object imported from BED files of the DHSs binned by H3K27ac/H3K4me1 mark signal/specificity for each cell type
 Data only given for MCF-7 currently
 }
 \keyword{datasets}

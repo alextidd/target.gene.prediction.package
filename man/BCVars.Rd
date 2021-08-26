@@ -5,8 +5,11 @@
 \alias{BCVars}
 \title{Fine-mapped breast cancer SNPs from BCAC (user-input data example)}
 \format{
-A GRanges object with 5369 ranges and 4 metadata columns:
+A tibble BED object with 5369 intervals and 4 metadata columns:
 \describe{
+  \item{chrom}{chromosome}
+  \item{start}{start position}
+  \item{end}{end position}
   \item{variant}{Unique SNP ID (rsID / position and allele information)}
   \item{cs}{Credible set that the SNP belongs to}
   \item{trait}{Trait associated with the SNP from GWAS (breast cancer)}
@@ -20,7 +23,7 @@ A GRanges object with 5369 ranges and 4 metadata columns:
 BCVars
 }
 \description{
-A GRanges object from a BED file of the strong fine-mapped breast cancer SNPs within credible set at breast cancer signals.
+A valr-compatible tibble BED object from a BED file of the strong fine-mapped breast cancer SNPs within credible set at breast cancer signals.
 This is a template for the user-inputted trait variants file.
 }
 \keyword{datasets}

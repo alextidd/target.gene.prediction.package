@@ -11,6 +11,7 @@
 `%ni%` <- Negate('%in%')
 
 # Read in data as tibbles for better printing
+#' @importFrom utils read.table
 read_tibble <- function(file, header = FALSE) {
   read.table(file,
              header = header,

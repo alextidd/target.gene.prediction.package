@@ -5,14 +5,14 @@
 \alias{hichip}
 \title{Paired-end BEDPE list object c(dataframe of first end, dataframe of last end)}
 \format{
-A list of paired BED-format dataframes with 359,970 pairs (719940, ends) and 2 metadata columns:
+A list of paired BED-format tibbles with 359,970 interaction pairs (719,940 intervals) and 2 metadata columns:
 \describe{
-  \item{chr}{chromosome}
+  \item{chrom}{chromosome}
   \item{start}{start position}
   \item{end}{end position}
-  \item{group}{Group column}
+  \item{InteractionID}{ID that links the paired ends between elements (first-last)}
+  \item{OldPairID}{Old ID}
   \item{value}{Reads}
-  \item{PairID}{Numeric ID that links the paired ends in each element (first-last)}
 }
 }
 \source{
@@ -24,6 +24,5 @@ hichip
 \description{
 A paired (first + last) list object representation of the MCF-7 HiChIP BEDPE file with an ID column matching pairs and metadata columns
 Data only given for MCF-7 currently
-This is not a GRanges object, as the GenomicRanges package does not appear to support paired-ends BED representation
 }
 \keyword{datasets}

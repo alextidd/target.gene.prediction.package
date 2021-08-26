@@ -4,10 +4,10 @@
 \alias{overlap_variants}
 \title{Overlap variants with another BED file}
 \usage{
-overlap_variants(v, bed_to_overlap)
+overlap_variants(vars, bed_to_overlap)
 }
 \arguments{
-\item{v}{A GRanges object of trait variants with metadata columns snpid and locus}
+\item{vars}{A GRanges object of trait variants with metadata columns snpid and locus}
 
 \item{bed_to_overlap}{A GRanges object of genomic annotations}
 }
