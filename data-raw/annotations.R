@@ -38,7 +38,18 @@ for(file in (list.files(ReMapDir, full.names = T) %>% head(2))) {
                     sep = "\\.")
 } ; TFBSs <- dplyr::bind_rows(TFBSs)
 
-# List
+# List and combine annotation information into a single column for the master table
 annotations <- list("DHSs" = DHSs,
                     "TFBSs" = TFBSs)
+names_annotations <- names(annotations) # must preserve list names
+annotations <- names(annotations) %>%
+  lapply(function(x) {
+    annotations[[x]] %>%
+      dplyr::mutate(type = x) %>%
+      tidyr::unite("annotation", c(type, 4:ncol(.)))
+  })
+names(annotations) <- names_annotations
+
+# Save
 usethis::use_data(annotations, overwrite = TRUE)
+
