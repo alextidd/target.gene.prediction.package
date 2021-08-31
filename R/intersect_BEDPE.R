@@ -3,12 +3,12 @@
 #' Intersect BEDPE list object with SNPs and TSSs
 #'
 #' @param bedpe A tibble BEDPE list object representing chromosomal interaction looping data
-#' @param SNPbed A tibble BED of trait SNPs
-#' @param TSSbed A tibble BED of gene TSSs
+#' @param SNPend A tibble BED of trait SNPs
+#' @param TSSend A tibble BED of gene TSSs
 #'
 #' @return A tibble BED of all interaction loops in which one end intersects with a SNP and the other end intersects with a TSS. The coordinates for the SNP
 #' @export
-intersect_BEDPE <- function(bedpe, SNPbed, TSSbed) {
+intersect_BEDPE <- function(bedpe, SNPend, TSSend) {
 
   # silence "no visible binding" NOTE for data variables
   . <- InteractionID <- origin <- SNP_origin <- ensg <- enst <- NULL
@@ -18,7 +18,7 @@ intersect_BEDPE <- function(bedpe, SNPbed, TSSbed) {
     dplyr::bind_rows(.id = "origin")
 
   # Find loops in which one end overlaps a SNP
-  SNP_end <- SNPbed %>%
+  SNP_end <- SNPend %>%
     target.gene.prediction.package::bed_intersect_left(PE, keepBcoords = F) %>%
     dplyr::rename(SNP_origin = origin)
 
@@ -34,7 +34,7 @@ intersect_BEDPE <- function(bedpe, SNPbed, TSSbed) {
                      by = c("InteractionID" = "InteractionID",
                             "TSS_origin" = "origin")) %>%
     # Intersect with TSSs
-    target.gene.prediction.package::bed_intersect_left(TSSbed, suffix = c(".SNP", ".TSS")) %>%
+    target.gene.prediction.package::bed_intersect_left(TSSend, suffix = c(".SNP", ".TSS")) %>%
     # Extract intersected gene metadata
     dplyr::select(dplyr::ends_with(".TSS"),
                   ensg:enst,
