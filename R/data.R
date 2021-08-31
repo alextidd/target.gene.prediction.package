@@ -16,11 +16,17 @@
 #' @source {/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/Traits/BC/BC.VariantList.bed}
 "BCVars"
 
-#' ReMap TFBSs (internal data example)
+#' A list of annotations with which to intersect user-provided SNPs
+#'
+#' @format A list of BED tibbles containing various functional annotations of the genome
+#'
+#' @section annotations[['TFBSs']]:
 #'
 #' A valr-compatible tibble BED object imported from BED files of the transcription factor binding sites from different ReMap 2020 experiments
+#' (Internal data example)
 #'
-#' @format A tibble BED object with 118576 ranges and 3 metadata columns:
+#' Source: /working/lab_georgiat/alexandT/target_gene_prediction_paper/output/ReMap/split_by_Experiment.TF.Biotype/
+#'
 #' \describe{
 #'   \item{chrom}{chromosome}
 #'   \item{start}{start position}
@@ -29,15 +35,14 @@
 #'   \item{TranscriptionFactor}{Transcription factor assayed}
 #'   \item{CellType}{Cell type assayed}
 #' }
-#' @source {/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/ReMap/split_by_Experiment.TF.Biotype/}
-"remap"
-
-#' DHSs binned by H3K27ac/H3K4me1 mark signal/specificity (internal data example)
 #'
-#' A valr-compatible tibble BED object imported from BED files of the DHSs binned by H3K27ac/H3K4me1 mark signal/specificity for each cell type
-#' Data only given for MCF-7 currently
+#' @section annotations[['DHSs']]:
 #'
-#' @format A tibble BED object with 5369 ranges and 4 metadata columns:
+#' A valr-compatible tibble BED object imported from BED files of the DHSs binned by H3K27ac/H3K4me1 mark signal/specificity for each cell type.
+#' (Internal data example)
+#'
+#' Source: /working/lab_georgiat/jonathB/PROJECTS/trench_lab/target_gene_prediction/output/activity_signal_matrix/bin_regions/
+#'
 #' \describe{
 #'   \item{chrom}{chromosome}
 #'   \item{start}{start position}
@@ -48,12 +53,11 @@
 #'   \item{Binning}{Number of bins into which data is split (e.g. quartiles, deciles)}
 #'   \item{Method}{Signal or specificity ranking of DHS sites}
 #' }
-#' @source {/working/lab_georgiat/jonathB/PROJECTS/trench_lab/target_gene_prediction/output/activity_signal_matrix/bin_regions/bin_regions_by_specificity/sorted/H3K27ac/deciles/}
-"bins"
+"annotations"
 
-#' Paired-end BEDPE list object c(dataframe of first end, dataframe of last end)
+#' Paired-end BEDPE list object
 #'
-#' A paired (first + last) list object representation of the MCF-7 HiChIP BEDPE file with an ID column matching pairs and metadata columns
+#' A paired c(dataframe of first end, dataframe of last end) list object representation of the MCF-7 HiChIP BEDPE file with an ID column matching pairs and metadata columns
 #' Data only given for MCF-7 currently
 #'
 #' @format A list of paired BED-format tibbles with 359,970 interaction pairs (719,940 intervals) and 2 metadata columns:
