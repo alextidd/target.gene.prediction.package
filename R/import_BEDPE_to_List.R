@@ -15,7 +15,7 @@ import_BEDPE_to_List <- function(bedpefile, metadata_cols = NULL) {
 
   message(paste("Importing paired-end BED file from", bedpefile))
 
-  bedpe <- target.gene.prediction.package::read_tibble(bedpefile) %>%
+  bedpe <- read_tibble(bedpefile) %>%
     dplyr::mutate(InteractionID = dplyr::row_number() %>% paste0("i.",.))
   PEList <- list()
   PEList[["first"]] <- bedpe[,-c(4:6)]

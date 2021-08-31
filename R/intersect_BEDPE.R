@@ -11,15 +11,15 @@
 intersect_BEDPE <- function(bedpe, SNPbed, TSSbed) {
 
   # silence "no visible binding" NOTE for data variables
-  . <- InteractionID <- origin <- SNP_origin <- NULL
+  . <- InteractionID <- origin <- SNP_origin <- ensg <- enst <- NULL
 
-  # Unlist BEDPE GRanges list object (InteractionID and first/last origin can still trace loops)
-  all <- bedpe %>%
+  # Unlist BEDPE list object (InteractionID and first/last origin can still trace loops)
+  PE <- bedpe %>%
     dplyr::bind_rows(.id = "origin")
 
   # Find loops in which one end overlaps a SNP
-  SNP_end <- all %>%
-    target.gene.prediction.package::bed_intersect_left(SNPbed, suffix = c("", ".SNP")) %>%
+  SNP_end <- SNPbed %>%
+    target.gene.prediction.package::bed_intersect_left(PE, keepBcoords = F) %>%
     dplyr::rename(SNP_origin = origin)
 
   # Intersect the opposite ends of these SNP-intersected loops with TSSs...
@@ -29,14 +29,15 @@ intersect_BEDPE <- function(bedpe, SNPbed, TSSbed) {
                      SNP_origin,
                      TSS_origin = dplyr::case_when(SNP_origin == "first" ~ "last",
                                                    SNP_origin == "last" ~ "first")) %>%
-    # Get coordinates
-    dplyr::left_join(all,
+    # Get coordinates of the _opposite_ end of all SNP-intersected loops
+    dplyr::left_join(PE,
                      by = c("InteractionID" = "InteractionID",
                             "TSS_origin" = "origin")) %>%
     # Intersect with TSSs
-    target.gene.prediction.package::bed_intersect_left(TSSbed, ., suffix = c(".TSS", "")) %>%
+    target.gene.prediction.package::bed_intersect_left(TSSbed, suffix = c(".SNP", ".TSS")) %>%
     # Extract intersected gene metadata
     dplyr::select(dplyr::ends_with(".TSS"),
+                  ensg:enst,
                   InteractionID,
                   SNP_origin)
 

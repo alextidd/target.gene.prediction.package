@@ -3,7 +3,7 @@
 \docType{data}
 \name{hichip}
 \alias{hichip}
-\title{Paired-end BEDPE list object c(dataframe of first end, dataframe of last end)}
+\title{Paired-end BEDPE list object}
 \format{
 A list of paired BED-format tibbles with 359,970 interaction pairs (719,940 intervals) and 2 metadata columns:
 \describe{
@@ -22,7 +22,7 @@ A list of paired BED-format tibbles with 359,970 interaction pairs (719,940 inte
 hichip
 }
 \description{
-A paired (first + last) list object representation of the MCF-7 HiChIP BEDPE file with an ID column matching pairs and metadata columns
+A paired c(dataframe of first end, dataframe of last end) list object representation of the MCF-7 HiChIP BEDPE file with an ID column matching pairs and metadata columns
 Data only given for MCF-7 currently
 }
 \keyword{datasets}

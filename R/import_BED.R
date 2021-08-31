@@ -14,7 +14,7 @@ import_BED <- function(bedfile, metadata_cols = NULL) {
 
   message(paste("Importing BED file from", bedfile))
 
-  target.gene.prediction.package::read_tibble(bedfile) %>%
+  read_tibble(bedfile) %>%
     dplyr::rename_with(., ~ c("chrom", "start", "end"), 1:3) %>%
     { if(!is.null(metadata_cols)) dplyr::rename_with(., ~ metadata_cols, 4:(3 + length(metadata_cols))) else . } %>%
     dplyr::select(c("chrom", "start", "end", metadata_cols))
