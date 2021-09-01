@@ -106,6 +106,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
                                                     bedpe = target.gene.prediction.package::hichip) %>%
     dplyr::transmute(variant,
                      enst,
+                     InteractionID,
                      annotation.name = "HiChIP",
                      annotation.value = "TRUE")
 
