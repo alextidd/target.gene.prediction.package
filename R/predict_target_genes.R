@@ -35,13 +35,37 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
       bedA = .,
       bedA_groups = "annotation",
       bedB = variants,
-      genome = target.gene.prediction.package::ChrSizes
+      genome = target.gene.prediction.package::ChrSizes,
+      estimate > 1.5,
+      p.value < 0.05
     ) %>%
-    # Filter for effect and significance
-    dplyr::filter(estimate > 1.5,
-                  p.value < 0.05) %>%
-    # Pull enriched annotation names - DHSs_specificity_H3K27ac_{{ CellType }}_quartiles_4
-    dplyr::pull(annotation)
+    # Extract enriched cell types from annotation names - DHSs_specificity_H3K27ac_{{ CellType }}_quartiles_4
+    dplyr::mutate(code = annotation %>%
+                    sub("DHSs_specificity_H3K27ac_", "", .) %>%
+                    sub("_quartiles_4", "", .)) %>%
+    dplyr::left_join(target.gene.prediction.package::annotations_metadata[["DHSs"]])
+
+  target.gene.prediction.package::annotations[["TFBSs"]] %>%
+    # Annotations in the tissues of interest
+    dplyr::mutate(code = annotation %>%
+                    sub(".*_", "", .)) %>%
+    dplyr::left_join(target.gene.prediction.package::annotations_metadata[["TFBSs"]]) %>%
+    dplyr::filter(tissue %in% specificity_enriched_annotations$tissue) %>%
+    # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest + filter for effect and significance
+    target.gene.prediction.package::bed_fisher_grouped(
+      bedA = .,
+      bedA_groups = "annotation",
+      bedB = variants,
+      genome = target.gene.prediction.package::ChrSizes,
+      estimate > 1.5,
+      p.value < 0.05
+    ) %>%
+    # Extract enriched cell types from annotation names - DHSs_specificity_H3K27ac_{{ CellType }}_quartiles_4
+    dplyr::mutate(code = annotation %>%
+                    sub("DHSs_specificity_H3K27ac_", "", .) %>%
+                    sub("_quartiles_4", "", .)) %>%
+    dplyr::left_join(target.gene.prediction.package::annotations_metadata[["DHSs"]])
+
 
   # ======================================================================================================
   # #### 2a) GENE-LEVEL INPUTS ####
@@ -65,7 +89,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # ======================================================================================================
   # #### 2b) VARIANT-LEVEL INPUTS ####
   # (Intersection with list of annotations, enhancers, GWAS statistics(?), etc...)
-  cat("2b) Annotating ", trait, " variants...\n")
+  cat("2b) Annotating", trait, "variants...\n")
 
   # intersect with list of genomic annotations
   variant_annotations <- variants %>%
@@ -95,7 +119,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # ======================================================================================================
   # #### 2c) PAIR-LEVEL INPUTS ####
   # (HiChIP interaction, distance, etc...)
-  cat("2c) Annotating gene x ", trait, " variant pairs...\n")
+  cat("2c) Annotating gene x", trait, "variant pairs...\n")
 
   # intersect HiChIP ends with user-provided variants and gene TSSs (finds interaction loops with a variant at one end and a TSS at the other)
   pair_hichip <- variants %>%
@@ -150,7 +174,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # -> only variant-gene combinations with at least one pair annotation (HiChIP interaction, nearest or within 2Mb) are included
   # -> pair ID columns: | variant | enst |
   # -> annotation columns: | pair_* | gene_* | variant_* |
-  cat("3) Generating master table of gene x ", trait, " variant pairs, with all annotation levels (genes, variants, gene-variant pairs)...\n")
+  cat("3) Generating master table of gene x", trait, "variant pairs, with all annotation levels (genes, variants, gene-variant pairs)...\n")
   master <- pair_annotations %>%
     dplyr::left_join(variant_annotations) %>%
     dplyr::left_join(gene_annotations)
