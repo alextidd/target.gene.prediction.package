@@ -5,8 +5,8 @@
 # DHS mark binning example dataset (Temporary)
 DHSsDir <- "/working/lab_georgiat/jonathB/PROJECTS/trench_lab/target_gene_prediction/output/activity_signal_matrix/bin_regions/"
 DHSs <- list()
-for(Method in c("specificity", "signal")) {
-  for(Mark in c("H3K27ac", "H3K4me1")){
+for(Method in c("specificity")) {
+  for(Mark in c("H3K27ac")){
     dir <- paste0(DHSsDir, "/bin_regions_by_", Method, "/sorted/", Mark, "/quartiles/")
     for(file in list.files(dir, pattern = "ENCFF", full.names = T)){
       name <- file %>% basename %>% sub(".sorted.bed","",.)

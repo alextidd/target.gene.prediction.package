@@ -46,5 +46,6 @@ intersect_BEDPE <- function(bedpe, SNPend, TSSend) {
     dplyr::as_tibble() %>%
     dplyr::right_join(TSS_end,
                       by = c("InteractionID", "SNP_origin")) %>%
-    dplyr::select(-SNP_origin)
+    dplyr::select(-SNP_origin) %>%
+    dplyr::distinct()
 }

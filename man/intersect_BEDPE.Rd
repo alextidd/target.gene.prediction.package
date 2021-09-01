@@ -4,14 +4,14 @@
 \alias{intersect_BEDPE}
 \title{Intersect BEDPE list}
 \usage{
-intersect_BEDPE(bedpe, SNPbed, TSSbed)
+intersect_BEDPE(bedpe, SNPend, TSSend)
 }
 \arguments{
 \item{bedpe}{A tibble BEDPE list object representing chromosomal interaction looping data}
 
-\item{SNPbed}{A tibble BED of trait SNPs}
+\item{SNPend}{A tibble BED of trait SNPs}
 
-\item{TSSbed}{A tibble BED of gene TSSs}
+\item{TSSend}{A tibble BED of gene TSSs}
 }
 \value{
 A tibble BED of all interaction loops in which one end intersects with a SNP and the other end intersects with a TSS. The coordinates for the SNP

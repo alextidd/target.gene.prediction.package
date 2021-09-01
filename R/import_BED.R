@@ -12,7 +12,7 @@ import_BED <- function(bedfile, metadata_cols = NULL) {
   # silence "no visible binding" NOTE for data variables
   . <- NULL
 
-  message(paste("Importing BED file from", bedfile))
+  cat("Importing BED file from ", bedfile, "\n")
 
   read_tibble(bedfile) %>%
     dplyr::rename_with(., ~ c("chrom", "start", "end"), 1:3) %>%

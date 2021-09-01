@@ -2,16 +2,26 @@
 % Please edit documentation in R/predict_target_genes.R
 \name{predict_target_genes}
 \alias{predict_target_genes}
-\title{Predict target genes of a list of fine-mapped non-coding SNPs for a trait}
+\title{Predict target genes of a list of fine-mapped non-coding variants for a trait}
 \usage{
-predict_target_genes(snpfile, trait = NULL, outdir = ".")
+predict_target_genes(
+  varfile,
+  trait = NULL,
+  tissue = NULL,
+  outdir = ".",
+  variant_to_gene_max_distance = 2e+06
+)
 }
 \arguments{
-\item{snpfile}{A header-less BED file of fine-mapped trait-relevant SNPs, with metadata columns for the variant's name and the credible set it belongs to (chrom, start, stop, variant, cs)}
+\item{varfile}{A header-less BED file of fine-mapped trait-relevant variants, with metadata columns for the variant's name and the credible set it belongs to (chrom, start, stop, variant, cs)}
 
-\item{trait}{The name of the trait of interest}
+\item{trait}{The name of the trait of interest.}
 
-\item{outdir}{The output directory in which to save the predictions. If none given, saved in current directory.}
+\item{tissue}{The tissue(s) of action for the trait.}
+
+\item{outdir}{The output directory in which to save the predictions. Default is current directory.}
+
+\item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb.}
 }
 \value{
 A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
