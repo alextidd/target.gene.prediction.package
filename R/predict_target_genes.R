@@ -137,7 +137,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
 
   # bind and widen all pair-level annotations
   pair_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
-    id_cols = c("variant", "enst"),
+    id_cols = c("variant", "enst", "InteractionID"),
     annotation.level = "pair",
     pair_hichip,
     pair_closest,
