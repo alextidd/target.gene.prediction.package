@@ -13,9 +13,8 @@
 # Read in data as tibbles for better printing
 #' @importFrom utils read.table
 read_tibble <- function(file, header = FALSE) {
-  read.table(file,
+  read.delim(file,
              header = header,
-             sep = "\t",
              stringsAsFactors = FALSE,
              quote = "") %>%
     dplyr::as_tibble()

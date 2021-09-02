@@ -11,9 +11,16 @@ intersect_annotations_list <- function(query){
   for(annotation in names(target.gene.prediction.package::annotations)){
     cat("============================================\n",
         "Intersecting query BED with", annotation, "\n")
-    df[[annotation]] <- valr::bed_intersect(query,
-                                            target.gene.prediction.package::annotations[[annotation]],
-                                            suffix = c(".query", ".annotation"))
+
+    df[[annotation]] <- target.gene.prediction.package::annotations[[annotation]] %>%
+      # add annotation type column
+      dplyr::mutate(type = annotation) %>%
+      # unite annotations columns together into a single column (for the master table)
+      tidyr::unite("annotation", c(type, 4:ncol(.))) %>%
+      # intersect with query bed
+      valr::bed_intersect(query,
+                          .,
+                          suffix = c(".query", ".annotation"))
   }
   dplyr::bind_rows(df)
 }

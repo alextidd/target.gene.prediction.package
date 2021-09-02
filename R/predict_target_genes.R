@@ -12,6 +12,8 @@
 #' @export
 predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = ".", variant_to_gene_max_distance = 2e6){
 
+  # for testing: variants <- BCVars %>% dplyr::select(chrom:cs)
+
   # silence "no visible binding" NOTE for data variables
   . <- variant <- enst <- start.variant <- start.TSS <- variant.variant <- enst.TSS <- score <- annotation <- estimate <-
     p.value <- enst.query <- annotation.annotation <- variant.query <- n <- end <- pair.score <-
@@ -28,44 +30,51 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # #### 1) CELL TYPE ENRICHMENT ####
   cat("1) Cell type enrichment...\n")
 
-  specificity_enriched_annotations <- target.gene.prediction.package::annotations[["DHSs"]] %>%
+  specificity_enriched_celltypes <- target.gene.prediction.package::annotations[["DHSs"]] %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
-    dplyr::filter(grepl("DHSs_specificity_H3K27ac_.*_quartiles_4", annotation)) %>%
+    dplyr::filter(Method == "specificity",
+                  Mark == "H3K27ac",
+                  Binning == "quartiles",
+                  Bin == "4") %>%
     target.gene.prediction.package::bed_fisher_grouped(
       bedA = .,
-      bedA_groups = "annotation",
+      bedA_groups = c("Method", "Mark", "Binning", "Bin"),
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
+      # filter for effect and significance
       estimate > 1.5,
       p.value < 0.05
     ) %>%
-    # Extract enriched cell types from annotation names - DHSs_specificity_H3K27ac_{{ CellType }}_quartiles_4
-    dplyr::mutate(code = annotation %>%
-                    sub("DHSs_specificity_H3K27ac_", "", .) %>%
-                    sub("_quartiles_4", "", .)) %>%
-    dplyr::left_join(target.gene.prediction.package::annotations_metadata[["DHSs"]])
+    # Extract enriched cell types - specificity | H3K27ac | {{ CellType }} | quartiles | 4
+    dplyr::pull(CellType)
 
-  target.gene.prediction.package::annotations[["TFBSs"]] %>%
+  # Get annotations of interest (in enriched tissues)
+  specificity_enriched_tissue_annotations <- list()
+  # Enriched DHS annotations
+  specificity_enriched_tissue_annotations[["DHSs"]] <-
+    target.gene.prediction.package::annotations_metadata[["DHSs"]] %>%
+    dplyr::filter(code %in% specificity_enriched_celltypes)
+  # TFBS annotations in the same enriched tissues
+  specificity_enriched_tissue_annotations[["TFBSs"]] <-
+    target.gene.prediction.package::annotations_metadata[["TFBSs"]] %>%
+    dplyr::filter(tissue %in% specificity_enriched_tissue_annotations[["DHSs"]]$tissue)
+
+  # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest
+  specificity_enriched_TFBSs <- target.gene.prediction.package::annotations[["TFBSs"]] %>%
     # Annotations in the tissues of interest
-    dplyr::mutate(code = annotation %>%
-                    sub(".*_", "", .)) %>%
-    dplyr::left_join(target.gene.prediction.package::annotations_metadata[["TFBSs"]]) %>%
-    dplyr::filter(tissue %in% specificity_enriched_annotations$tissue) %>%
-    # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest + filter for effect and significance
+    dplyr::filter(CellType %in% specificity_enriched_tissue_annotations[["TFBSs"]]$code) %>%
+    # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest
     target.gene.prediction.package::bed_fisher_grouped(
       bedA = .,
-      bedA_groups = "annotation",
+      bedA_groups = c("Experiment", "TranscriptionFactor", "CellType"),
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
+      # filter for effect and significance
       estimate > 1.5,
       p.value < 0.05
     ) %>%
-    # Extract enriched cell types from annotation names - DHSs_specificity_H3K27ac_{{ CellType }}_quartiles_4
-    dplyr::mutate(code = annotation %>%
-                    sub("DHSs_specificity_H3K27ac_", "", .) %>%
-                    sub("_quartiles_4", "", .)) %>%
-    dplyr::left_join(target.gene.prediction.package::annotations_metadata[["DHSs"]])
-
+    # Extract enriched cell types
+    dplyr::pull(CellType)
 
   # ======================================================================================================
   # #### 2a) GENE-LEVEL INPUTS ####
@@ -185,4 +194,6 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # #### 4) SCORING ####
   # -> Score enriched feature annotations
 
+  
+  
 }

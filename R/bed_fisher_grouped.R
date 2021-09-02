@@ -20,6 +20,6 @@ bed_fisher_grouped <- function(bedA, bedB, bedA_groups = NULL, genome, ...){
 
   A %>%
     dplyr::group_modify(~ valr::bed_fisher(.x, B, genome)) %>%
-    dplyr::ungroup %>%
+    dplyr::ungroup() %>%
     dplyr::filter(...)
 }
