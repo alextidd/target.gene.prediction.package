@@ -2,3 +2,4 @@
 .Rhistory
 .RData
 **/graveyard
+data/annotations.rda

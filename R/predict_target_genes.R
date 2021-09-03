@@ -12,7 +12,8 @@
 #' @export
 predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = ".", variant_to_gene_max_distance = 2e6){
 
-  # for testing: variants <- BCVars %>% dplyr::select(chrom:cs)
+  # for testing:
+  # variants <- BCVars %>% dplyr::select(chrom:cs) ; trait = "BC" ; outdir = "." ; variant_to_gene_max_distance = 2e6
 
   # silence "no visible binding" NOTE for data variables
   . <- variant <- enst <- start.variant <- start.TSS <- variant.variant <- enst.TSS <- score <- annotation <- estimate <-
@@ -26,11 +27,18 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   variants <- target.gene.prediction.package::import_BED(varfile,
                                                          metadata_cols = c("variant", "cs"))
 
+
+  # (Temporary!) add annotations.rda data (currently in .gitignore, too large to upload)
+  annotations <- load("/working/lab_georgiat/alexandT/target.gene.prediction.package/data/annotations.rda")
+  # annotations <- target.gene.prediction.package::annotations
+  ## TODO: fix the annotations.rda problem (save online somewhere?)
+  ## TODO: change `annotations` back to `target.gene.prediction.package::annotations` in this script
+
   # ======================================================================================================
   # #### 1) CELL TYPE ENRICHMENT ####
   cat("1) Cell type enrichment...\n")
 
-  specificity_enriched_celltypes <- target.gene.prediction.package::annotations[["DHSs"]] %>%
+  specificity_enriched_celltypes <- annotations[["DHSs"]] %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
     dplyr::filter(Method == "specificity",
                   Mark == "H3K27ac",
@@ -38,7 +46,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
                   Bin == "4") %>%
     target.gene.prediction.package::bed_fisher_grouped(
       bedA = .,
-      bedA_groups = c("Method", "Mark", "Binning", "Bin"),
+      bedA_groups = c("Method", "Mark", "CellType", "Binning", "Bin"),
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
       # filter for effect and significance
@@ -47,6 +55,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     ) %>%
     # Extract enriched cell types - specificity | H3K27ac | {{ CellType }} | quartiles | 4
     dplyr::pull(CellType)
+  cat("Enriched cell types: ", specificity_enriched_celltypes)
 
   # Get annotations of interest (in enriched tissues)
   specificity_enriched_tissue_annotations <- list()
@@ -60,7 +69,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     dplyr::filter(tissue %in% specificity_enriched_tissue_annotations[["DHSs"]]$tissue)
 
   # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest
-  specificity_enriched_TFBSs <- target.gene.prediction.package::annotations[["TFBSs"]] %>%
+  specificity_enriched_TFBSs <- annotations[["TFBSs"]] %>%
     # Annotations in the tissues of interest
     dplyr::filter(CellType %in% specificity_enriched_tissue_annotations[["TFBSs"]]$code) %>%
     # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest
@@ -73,8 +82,8 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
       estimate > 1.5,
       p.value < 0.05
     ) %>%
-    # Extract enriched cell types
-    dplyr::pull(CellType)
+    # Extract enriched TFBSs
+    dplyr::pull(TranscriptionFactor)
 
   # ======================================================================================================
   # #### 2a) GENE-LEVEL INPUTS ####
@@ -86,12 +95,14 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     target.gene.prediction.package::intersect_annotations_list() %>%
     dplyr::transmute(enst = enst.query,
                      annotation.name = annotation.annotation,
-                     annotation.value = "TRUE")
+                     annotation.value = "TRUE") %>%
+    ## TODO: remove distinct() step once ReMap files are cleaned
+    dplyr::distinct()
 
   # bind and widen all gene-level annotations
   gene_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
     id_cols = "enst",
-    annotation.level = "gene",
+    annotation_level = "gene",
     gene_annotations
     )
 
@@ -109,7 +120,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
 
   # calculate n genes near each variant
   variant_n_genes <- variants %>%
-    # Get genes within 2Mb of each variant
+    # Get genes within xMb of each variant
     valr::bed_slop(both = variant_to_gene_max_distance, genome = target.gene.prediction.package::ChrSizes, trim = T) %>%
     valr::bed_intersect(., target.gene.prediction.package::TSSs, suffix = c("", ".TSS")) %>%
     dplyr::count(variant) %>%
@@ -120,7 +131,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # bind and widen all variant-level annotations
   variant_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
     id_cols = "variant",
-    annotation.level = "variant",
+    annotation_level = "variant",
     variant_annotations,
     variant_n_genes
   )
@@ -130,18 +141,20 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # (HiChIP interaction, distance, etc...)
   cat("2c) Annotating gene x", trait, "variant pairs...\n")
 
-  # intersect HiChIP ends with user-provided variants and gene TSSs (finds interaction loops with a variant at one end and a TSS at the other)
-  pair_hichip <- variants %>%
-    # ! For the purpose of mutually exclusive intersection with HiChIP ranges, make variant intervals 1bp long, equal to the end position
-    dplyr::mutate(start = end) %>%
-    target.gene.prediction.package::intersect_BEDPE(SNPend = .,
-                                                    TSSend = target.gene.prediction.package::TSSs,
-                                                    bedpe = target.gene.prediction.package::hichip) %>%
-    dplyr::transmute(variant,
-                     enst,
-                     InteractionID,
-                     annotation.name = "HiChIP",
-                     annotation.value = "TRUE")
+  # intersect HiC ends, by cell type, with user-provided variants and gene TSSs
+  # (finds interaction loops with a variant at one end and a TSS at the other)
+  pair_contact <- target.gene.prediction.package::hic %>%
+    purrr::map(~ intersect_BEDPE(
+      # ! For the purpose of mutually exclusive intersection with HiC ranges, make variant intervals 1bp long, equal to the end position
+      SNPend = variants %>% dplyr::mutate(start = end),
+      TSSend = target.gene.prediction.package::TSSs,
+      bedpe = .) %>%
+        dplyr::transmute(variant,
+                         enst,
+                         InteractionID,
+                         annotation.name = paste0("HiC_", CellType),
+                         annotation.value = "TRUE")) %>%
+    dplyr::bind_rows()
 
   # nearest gene TSS method
   pair_closest <- valr::bed_closest(x = variants,
@@ -171,8 +184,8 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # bind and widen all pair-level annotations
   pair_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
     id_cols = c("variant", "enst", "InteractionID"),
-    annotation.level = "pair",
-    pair_hichip,
+    annotation_level = "pair",
+    pair_contact,
     pair_closest,
     pair_distance_score
   )
@@ -194,6 +207,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # #### 4) SCORING ####
   # -> Score enriched feature annotations
 
-  
-  
+  # ======================================================================================================
+  # #### 5) XGBoost model training? ####
+
 }

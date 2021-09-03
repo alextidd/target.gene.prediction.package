@@ -9,8 +9,7 @@
 intersect_annotations_list <- function(query){
   df <- list()
   for(annotation in names(target.gene.prediction.package::annotations)){
-    cat("============================================\n",
-        "Intersecting query BED with", annotation, "\n")
+    cat("Intersecting query BED with", annotation, "\n")
 
     df[[annotation]] <- target.gene.prediction.package::annotations[[annotation]] %>%
       # add annotation type column
@@ -22,5 +21,8 @@ intersect_annotations_list <- function(query){
                           .,
                           suffix = c(".query", ".annotation"))
   }
-  dplyr::bind_rows(df)
+  df <- df %>%
+    dplyr::bind_rows() %>%
+    dplyr::distinct()
+  return(df)
 }

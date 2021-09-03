@@ -13,7 +13,7 @@ import_BEDPE_to_List <- function(bedpefile, metadata_cols = NULL) {
   # silence "no visible binding" NOTE for data variables
   . <- NULL
 
-  message(paste("Importing paired-end BED file from", bedpefile))
+  cat("Importing paired-end BED file from", bedpefile)
 
   bedpe <- read_tibble(bedpefile) %>%
     dplyr::mutate(InteractionID = dplyr::row_number() %>% paste0("i.",.))
