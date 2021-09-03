@@ -95,7 +95,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     target.gene.prediction.package::intersect_annotations_list() %>%
     dplyr::transmute(enst = enst.query,
                      annotation.name = annotation.annotation,
-                     annotation.value = "TRUE") %>%
+                     annotation.value = 1) %>%
     ## TODO: remove distinct() step once ReMap files are cleaned
     dplyr::distinct()
 
@@ -104,7 +104,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     id_cols = "enst",
     annotation_level = "gene",
     gene_annotations
-    )
+  )
 
   # ======================================================================================================
   # #### 2b) VARIANT-LEVEL INPUTS ####
@@ -116,7 +116,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     target.gene.prediction.package::intersect_annotations_list() %>%
     dplyr::transmute(variant = variant.query,
                      annotation.name = annotation.annotation,
-                     annotation.value = "TRUE")
+                     annotation.value = 1)
 
   # calculate n genes near each variant
   variant_n_genes <- variants %>%
@@ -137,37 +137,38 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   )
 
   # ======================================================================================================
-  # #### 2c) PAIR-LEVEL INPUTS ####
-  # (HiChIP interaction, distance, etc...)
+  # #### 2c) GENE-X-VARIANT-LEVEL INPUTS ####
+  # (HiC interaction, distance, etc...)
   cat("2c) Annotating gene x", trait, "variant pairs...\n")
 
   # intersect HiC ends, by cell type, with user-provided variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  pair_contact <- target.gene.prediction.package::hic %>%
+  gene_x_variant_contact <- target.gene.prediction.package::contact %>%
     purrr::map(~ intersect_BEDPE(
       # ! For the purpose of mutually exclusive intersection with HiC ranges, make variant intervals 1bp long, equal to the end position
       SNPend = variants %>% dplyr::mutate(start = end),
       TSSend = target.gene.prediction.package::TSSs,
       bedpe = .) %>%
         dplyr::transmute(variant,
+                         cs,
                          enst,
                          InteractionID,
-                         annotation.name = paste0("HiC_", CellType),
-                         annotation.value = "TRUE")) %>%
+                         annotation.name,
+                         annotation.value = 1)) %>%
     dplyr::bind_rows()
 
   # nearest gene TSS method
-  pair_closest <- valr::bed_closest(x = variants,
-                                    y = target.gene.prediction.package::TSSs,
-                                    suffix = c("", ".TSS")) %>%
+  gene_x_variant_closest <- valr::bed_closest(x = variants,
+                                              y = target.gene.prediction.package::TSSs,
+                                              suffix = c("", ".TSS")) %>%
     dplyr::distinct() %>%
     dplyr::transmute(variant,
                      enst = enst.TSS,
                      annotation.name = "nearest",
-                     annotation.value = "TRUE")
+                     annotation.value = 1)
 
   # TSS distance scoring method
-  pair_distance_score <- variants %>%
+  gene_x_variant_distance_score <- variants %>%
     # Get genes within 1Mb of each variant
     valr::bed_slop(both = variant_to_gene_max_distance,
                    genome = target.gene.prediction.package::ChrSizes,
@@ -181,24 +182,38 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
                      annotation.name = "inverse_distance_within_2Mb",
                      annotation.value = as.character(pair.score))
 
-  # bind and widen all pair-level annotations
-  pair_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
+  # bind and widen all gene-x-variant-level annotations
+  gene_x_variant_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
     id_cols = c("variant", "enst", "InteractionID"),
-    annotation_level = "pair",
-    pair_contact,
-    pair_closest,
-    pair_distance_score
+    annotation_level = "gene_x_variant",
+    gene_x_variant_contact,
+    gene_x_variant_closest,
+    gene_x_variant_distance_score
   )
+
+  # ======================================================================================================
+  # #### 2d) GENE-X-CS-LEVEL INPUTS ####
+  gene_x_cs_contact <- gene_x_variant_contact %>%
+    dplyr::group_by(cs, enst) %>%
+    dplyr::mutate(n_gene_x_cs_interactions = dplyr::n_distinct(InteractionID),
+                  InteractionID = paste0(unique(InteractionID), collapse = ",")) %>%
+    dplyr::ungroup() %>%
+    dplyr::transmute(variant,
+                     cs,
+                     enst,
+                     InteractionID,
+                     annotation.name = "multi_contact")
+
 
   # ======================================================================================================
   # #### 3) ALL INPUTS ####
   # Master variant-gene pair table
-  # -> wide-format (one row per pair, one column per annotation)
+  # -> wide-format (one row per gene-variant pair, one column per annotation)
   # -> only variant-gene combinations with at least one pair annotation (HiChIP interaction, nearest or within 2Mb) are included
   # -> pair ID columns: | variant | enst |
   # -> annotation columns: | pair_* | gene_* | variant_* |
   cat("3) Generating master table of gene x", trait, "variant pairs, with all annotation levels (genes, variants, gene-variant pairs)...\n")
-  master <- pair_annotations %>%
+  master <- gene_x_variant_annotations %>%
     dplyr::left_join(variant_annotations) %>%
     dplyr::left_join(gene_annotations)
   return(master)
