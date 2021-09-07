@@ -1,27 +1,23 @@
-## code to prepare `annotations` dataset goes here
+## code to prepare `DHSs` dataset goes here
 
-# A list of various annotations to be intersected with SNPs and genes for pair predictions
-
-# DHS mark binning dataset
+# DHS mark binning dataset - top decile for each + H3K27ac only (! Temporary - file too big otherwise)
 DHSsDir <- "/working/lab_georgiat/jonathB/PROJECTS/trench_lab/target_gene_prediction/output/activity_signal_matrix/bin_regions/"
 # load
 DHSs <- list() ; for(Method in c("specificity", "signal")) {
-  for(Mark in c("H3K27ac", "H3K4me1")){
-    dir <- paste0(DHSsDir, "/bin_regions_by_", Method, "/sorted/", Mark, "/quartiles/")
-    for(file in list.files(dir, full.names = T)){
+  for(Mark in c("H3K27ac")){
+    dir <- paste0(DHSsDir, "/bin_regions_by_", Method, "/sorted/", Mark, "/deciles/")
+    for(file in list.files(dir, pattern = "bin10", full.names = T)){
       df <- target.gene.prediction.package::import_BED(file)
       # Add metadata columns
-      df$CellType <- sub("\\..*", "", basename(file))
-      df$Quartile <- basename(file) %>% sub(".*\\.bin", "", .) %>% sub(".sorted.bed", "", .) %>% as.numeric
+      CellType <- sub("\\..*", "", basename(file))
+      Bin <- basename(file) %>% sub(".sorted.bed", "", .) %>% sub(".*\\.", "", .)
       # TODO: fix data structure so that the metadata is within the bed files, not extracted from the path info
       # TODO: fix bin columns within the files (character -> numeric)
       # TODO: fix cell type naming codes
-      DHSs[[Method]][[Mark]][[file]] <- df
+      DHSs[[Method]][[Mark]][[CellType]][[Bin]] <- df
     }
-    DHSs[[Method]][[Mark]] <- dplyr::bind_rows(DHSs[[Method]][[Mark]])
   }
 }
-# DHSs <- DHSs %>% purrr::map_dfr(dplyr::bind_rows)
 
 # Save
 usethis::use_data(DHSs, overwrite = TRUE)

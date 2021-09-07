@@ -27,9 +27,16 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   variants <- target.gene.prediction.package::import_BED(varfile,
                                                          metadata_cols = c("variant", "cs"))
 
+  # list annotations to be used by intersect_annotations() (must be a list of BED tibbles)
+  annotations <- list(
+      DHSs = target.gene.prediction.package::DHSs %>%
+        target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType", "Bin"))
+  )
 
   # (Temporary!) add annotations.rda data (currently in .gitignore, too large to upload)
-  annotations <- load("/working/lab_georgiat/alexandT/target.gene.prediction.package/data/annotations.rda")
+  # annotations <- list(DHSs = target.gene.prediction.package::DHSs,
+  #                     contact = target.gene.prediction.package::contact)
+  # annotations <- load("/working/lab_georgiat/alexandT/target.gene.prediction.package/data/annotations.rda")
   # annotations <- target.gene.prediction.package::annotations
   ## TODO: fix the annotations.rda problem (save online somewhere?)
   ## TODO: change `annotations` back to `target.gene.prediction.package::annotations` in this script
@@ -38,52 +45,26 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # #### 1) CELL TYPE ENRICHMENT ####
   cat("1) Cell type enrichment...\n")
 
-  specificity_enriched_celltypes <- annotations[["DHSs"]] %>%
+  specificity_enriched_celltypes <- target.gene.prediction.package::DHSs %>%
+    target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType", "Bin")) %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
     dplyr::filter(Method == "specificity",
                   Mark == "H3K27ac",
-                  Binning == "quartiles",
-                  Bin == "4") %>%
+                  Bin == "bin10") %>%
     target.gene.prediction.package::bed_fisher_grouped(
       bedA = .,
-      bedA_groups = c("Method", "Mark", "CellType", "Binning", "Bin"),
+      bedA_groups = c("CellType"),
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
       # filter for effect and significance
-      estimate > 1.5,
+      estimate > 2,
       p.value < 0.05
     ) %>%
     # Extract enriched cell types - specificity | H3K27ac | {{ CellType }} | quartiles | 4
-    dplyr::pull(CellType)
-  cat("Enriched cell types: ", specificity_enriched_celltypes)
+    dplyr::pull(CellType) %>%
+    {dplyr::filter(target.gene.prediction.package::DHSs_metadata, code %in% .)}
 
-  # Get annotations of interest (in enriched tissues)
-  specificity_enriched_tissue_annotations <- list()
-  # Enriched DHS annotations
-  specificity_enriched_tissue_annotations[["DHSs"]] <-
-    target.gene.prediction.package::annotations_metadata[["DHSs"]] %>%
-    dplyr::filter(code %in% specificity_enriched_celltypes)
-  # TFBS annotations in the same enriched tissues
-  specificity_enriched_tissue_annotations[["TFBSs"]] <-
-    target.gene.prediction.package::annotations_metadata[["TFBSs"]] %>%
-    dplyr::filter(tissue %in% specificity_enriched_tissue_annotations[["DHSs"]]$tissue)
-
-  # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest
-  specificity_enriched_TFBSs <- annotations[["TFBSs"]] %>%
-    # Annotations in the tissues of interest
-    dplyr::filter(CellType %in% specificity_enriched_tissue_annotations[["TFBSs"]]$code) %>%
-    # Fisher enrichment test of variants in TFBSs of tissue type(s) of interest
-    target.gene.prediction.package::bed_fisher_grouped(
-      bedA = .,
-      bedA_groups = c("Experiment", "TranscriptionFactor", "CellType"),
-      bedB = variants,
-      genome = target.gene.prediction.package::ChrSizes,
-      # filter for effect and significance
-      estimate > 1.5,
-      p.value < 0.05
-    ) %>%
-    # Extract enriched TFBSs
-    dplyr::pull(TranscriptionFactor)
+  cat("Enriched cell types: ", specificity_enriched_celltypes$code)
 
   # ======================================================================================================
   # #### 2a) GENE-LEVEL INPUTS ####
@@ -92,7 +73,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
 
   # intersect with list of genomic annotations
   gene_annotations <- target.gene.prediction.package::TSSs %>%
-    target.gene.prediction.package::intersect_annotations_list() %>%
+    target.gene.prediction.package::intersect_annotations() %>%
     dplyr::transmute(enst = enst.query,
                      annotation.name = annotation.annotation,
                      annotation.value = 1) %>%
@@ -113,7 +94,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
 
   # intersect with list of genomic annotations
   variant_annotations <- variants %>%
-    target.gene.prediction.package::intersect_annotations_list() %>%
+    target.gene.prediction.package::intersect_annotations() %>%
     dplyr::transmute(variant = variant.query,
                      annotation.name = annotation.annotation,
                      annotation.value = 1)
@@ -126,7 +107,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     dplyr::count(variant) %>%
     dplyr::transmute(variant,
                      annotation.name = paste0("n_genes_within_", variant_to_gene_max_distance/1e6, "Mb_of_variant"),
-                     annotation.value = as.character(n))
+                     annotation.value = n)
 
   # bind and widen all variant-level annotations
   variant_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
@@ -180,12 +161,12 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     dplyr::transmute(variant = variant.variant,
                      enst = enst.TSS,
                      annotation.name = "inverse_distance_within_2Mb",
-                     annotation.value = as.character(pair.score))
+                     annotation.value = pair.score)
 
   # bind and widen all gene-x-variant-level annotations
   gene_x_variant_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
     id_cols = c("variant", "enst", "InteractionID"),
-    annotation_level = "gene_x_variant",
+    annotation_level = "gxv",
     gene_x_variant_contact,
     gene_x_variant_closest,
     gene_x_variant_distance_score
