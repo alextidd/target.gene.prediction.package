@@ -69,9 +69,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     target.gene.prediction.package::intersect_annotations() %>%
     dplyr::transmute(enst = enst.query,
                      annotation.name = annotation.annotation,
-                     annotation.value = 1) %>%
-    ## TODO: remove distinct() step once ReMap files are cleaned
-    dplyr::distinct()
+                     annotation.value = 1)
 
   # bind and widen all gene-level annotations
   gene_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
@@ -206,6 +204,5 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
 
   # ======================================================================================================
   # #### 5) XGBoost model training? ####
-
 
 }
