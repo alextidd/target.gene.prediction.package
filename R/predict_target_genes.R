@@ -12,9 +12,6 @@
 #' @export
 predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = ".", variant_to_gene_max_distance = 2e6){
 
-  # for testing:
-  # variants <- BCVars %>% dplyr::select(chrom:cs) ; trait = "BC" ; outdir = "." ; variant_to_gene_max_distance = 2e6
-
   # silence "no visible binding" NOTE for data variables
   . <- variant <- enst <- start.variant <- start.TSS <- variant.variant <- enst.TSS <- score <- annotation <- estimate <-
     p.value <- enst.query <- annotation.annotation <- variant.query <- n <- end <- pair.score <-
@@ -26,19 +23,15 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # import the variants
   variants <- target.gene.prediction.package::import_BED(varfile,
                                                          metadata_cols = c("variant", "cs"))
+  # for testing:
+  # variants <- BCVars %>% dplyr::select(chrom:cs) ; trait = "BC" ; outdir = "." ; variant_to_gene_max_distance = 2e6
 
   # list annotations to be used by intersect_annotations() (must be a list of BED tibbles)
   annotations <- list(
       DHSs = target.gene.prediction.package::DHSs %>%
         target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType", "Bin"))
   )
-
-  # (Temporary!) add annotations.rda data (currently in .gitignore, too large to upload)
-  # annotations <- list(DHSs = target.gene.prediction.package::DHSs,
-  #                     contact = target.gene.prediction.package::contact)
-  # annotations <- load("/working/lab_georgiat/alexandT/target.gene.prediction.package/data/annotations.rda")
-  # annotations <- target.gene.prediction.package::annotations
-  ## TODO: fix the annotations.rda problem (save online somewhere?)
+  ## TODO: fix the annotations.rda problem (save online somewhere / GitHub LFS?)
   ## TODO: change `annotations` back to `target.gene.prediction.package::annotations` in this script
 
   # ======================================================================================================
@@ -53,7 +46,7 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
                   Bin == "bin10") %>%
     target.gene.prediction.package::bed_fisher_grouped(
       bedA = .,
-      bedA_groups = c("CellType"),
+      bedA_groups = "CellType",
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
       # filter for effect and significance
@@ -134,9 +127,8 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
                          cs,
                          enst,
                          InteractionID,
-                         annotation.name,
                          annotation.value = 1)) %>%
-    dplyr::bind_rows()
+    dplyr::bind_rows(.id = "annotation.name")
 
   # nearest gene TSS method
   gene_x_variant_closest <- valr::bed_closest(x = variants,
@@ -179,12 +171,18 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
     dplyr::mutate(n_gene_x_cs_interactions = dplyr::n_distinct(InteractionID),
                   InteractionID = paste0(unique(InteractionID), collapse = ",")) %>%
     dplyr::ungroup() %>%
-    dplyr::transmute(variant,
-                     cs,
+    dplyr::transmute(cs,
                      enst,
                      InteractionID,
-                     annotation.name = "multi_contact")
+                     annotation.value = n_gene_x_cs_interactions,
+                     annotation.name = "multi_contact") %>%
+    dplyr::distinct()
 
+  gene_x_cs_annotations <- target.gene.prediction.package::bind_and_widen_annotations(
+    id_cols = c("cs", "enst", "InteractionID"),
+    annotation_level = "gxc",
+    gene_x_cs_contact
+  )
 
   # ======================================================================================================
   # #### 3) ALL INPUTS ####
@@ -194,7 +192,10 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
   # -> pair ID columns: | variant | enst |
   # -> annotation columns: | pair_* | gene_* | variant_* |
   cat("3) Generating master table of gene x", trait, "variant pairs, with all annotation levels (genes, variants, gene-variant pairs)...\n")
-  master <- gene_x_variant_annotations %>%
+  master <- variants %>%
+    dplyr::select(variant, cs) %>%
+    dplyr::right_join(gene_x_variant_annotations) %>%
+    dplyr::left_join(gene_x_cs_annotations) %>%
     dplyr::left_join(variant_annotations) %>%
     dplyr::left_join(gene_annotations)
   return(master)
@@ -205,5 +206,6 @@ predict_target_genes <- function(varfile, trait = NULL, tissue = NULL, outdir = 
 
   # ======================================================================================================
   # #### 5) XGBoost model training? ####
+
 
 }

@@ -12,7 +12,7 @@ for(i in 1:length(BEDPEFiles)){
     )
 
   CellType <- unique(c(ends[[1]]$CellType, ends[[2]]$CellType)) ; cat("\n", CellType, "\n")
-  annotation.name <-  paste0("PC-HiC_",CellType)
+  annotation.name <-  paste0("pcHiC_",CellType)
 
   ends <- purrr::map(ends, ~.x %>%
                        dplyr::select(-CellType))

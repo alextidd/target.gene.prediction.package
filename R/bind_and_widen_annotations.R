@@ -5,14 +5,16 @@
 #'
 #' @param id_cols Vector of column names that uniquely identifies each observation, sent to pivot_wider(id_cols)
 #' @param annotation.level Name of the annotation level (e.g. pair, gene, variant) that the annotations fall within
+#' @param apply_weight If TRUE (default), will multiply annotation.value by annotation.weight to get the resulting values.
 #' @param ... The long-format annotation tibble(s) to bind and widen
 #'
 #' @return Wide-format annotation dataframe, with only one observation per row and only one annotation per column
 #' @export
-bind_and_widen_annotations <- function(id_cols, annotation_level, ...){
+bind_and_widen_annotations <- function(id_cols, annotation_level, apply_weight = TRUE, ...){
 
   dplyr::bind_rows(...) %>%
     dplyr::mutate(annotation.level = annotation_level) %>%
+    { if(apply_weight) dplyr::mutate(annotation.value = annotation.value * annotation.weight) else . } %>%
     tidyr::pivot_wider(id_cols = id_cols,
                        names_from = c(annotation.level, annotation.name),
                        values_from = annotation.value) %>%
