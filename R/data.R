@@ -16,32 +16,11 @@
 #' @source {/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/Traits/BC/BC.VariantList.bed}
 "BCVars"
 
-#' A list of annotations with which to intersect user-provided SNPs
+#' Mark specificity-/signal-binned DHSs across cell types
 #'
-#' @format A list of BED tibbles containing various functional annotations of the genome
-#'
-#' @section annotations[['TFBSs']]:
-#'
-#' A valr-compatible tibble BED object imported from BED files of the transcription factor binding sites from different ReMap 2020 experiments
+#' A list of valr-compatible tibble BED objects imported from BED files of the DHSs binned by H3K27ac/H3K4me1
+#' mark signal/specificity for each cell type.
 #' (Internal data example)
-#'
-#' Source: /working/lab_georgiat/alexandT/target_gene_prediction_paper/output/ReMap/split_by_Experiment.TF.Biotype/
-#'
-#' \describe{
-#'   \item{chrom}{chromosome}
-#'   \item{start}{start position}
-#'   \item{end}{end position}
-#'   \item{Experiment}{Accession number of experiment from which the data was generated (e.g. GENCODE)}
-#'   \item{TranscriptionFactor}{Transcription factor assayed}
-#'   \item{CellType}{Cell type assayed}
-#' }
-#'
-#' @section annotations[['DHSs']]:
-#'
-#' A valr-compatible tibble BED object imported from BED files of the DHSs binned by H3K27ac/H3K4me1 mark signal/specificity for each cell type.
-#' (Internal data example)
-#'
-#' Source: /working/lab_georgiat/jonathB/PROJECTS/trench_lab/target_gene_prediction/output/activity_signal_matrix/bin_regions/
 #'
 #' \describe{
 #'   \item{chrom}{chromosome}
@@ -53,24 +32,32 @@
 #'   \item{Binning}{Number of bins into which data is split (e.g. quartiles, deciles)}
 #'   \item{Method}{Signal or specificity ranking of DHS sites}
 #' }
-"annotations"
+#' @source {/working/lab_georgiat/jonathB/PROJECTS/trench_lab/target_gene_prediction/output/activity_signal_matrix/bin_regions/}
+"DHSs"
 
-#' Paired-end BEDPE list object
+#' Metadata for `DHSs`
 #'
-#' A paired c(dataframe of first end, dataframe of last end) list object representation of the MCF-7 HiChIP BEDPE file with an ID column matching pairs and metadata columns
-#' Data only given for MCF-7 currently
+#' Metadata matching each DHS celltype code to its name, tissue and developmental stage
 #'
-#' @format A list of paired BED-format tibbles with 359,970 interaction pairs (719,940 intervals) and 2 metadata columns:
 #' \describe{
-#'   \item{chrom}{chromosome}
-#'   \item{start}{start position}
-#'   \item{end}{end position}
-#'   \item{InteractionID}{ID that links the paired ends between elements (first-last)}
-#'   \item{OldPairID}{Old ID}
-#'   \item{value}{Reads}
+#'   \item{code}{Shortened cell type code in `DHSs` CellType column}
+#'   \item{name}{Full, descriptive name of the cell type}
+#'   \item{tissue}{Tissue of origin of the sample}
+#'   \item{stage}{Developmental stage of the sample (embryo / fetus / adult)}
 #' }
-#' @source {/working/lab_georgiat/alexandT/target_gene_prediction/data/HiChIP/MCF7/abc-ready/HiChIP.bedpe}
-"hichip"
+"DHSs_metadata"
+
+#' Metadata for the contact data samples that accompany the package
+#'
+#' Metadata matching each contact assay in the contact list to its study, celltype and tissue
+#'
+#' \describe{
+#'   \item{code}{Shortened cell type code in `DHSs` CellType column}
+#'   \item{name}{Full, descriptive name of the cell type}
+#'   \item{tissue}{Tissue of origin of the sample}
+#'   \item{stage}{Developmental stage of the sample (embryo / fetus / adult)}
+#' }
+"contact_metadata"
 
 #' Data frame of list(s) of driver gene symbols, which are treated as the positive control causal gene sets
 #'

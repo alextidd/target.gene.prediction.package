@@ -4,16 +4,18 @@
 \alias{bed_fisher_grouped}
 \title{Fisher test of significance of overlaps between grouped sets of intervals}
 \usage{
-bed_fisher_grouped(bedA, bedB, genome, bedA_groups = NULL)
+bed_fisher_grouped(bedA, bedB, bedA_groups = NULL, genome, ...)
 }
 \arguments{
 \item{bedA}{A tibble BED with columns: chrom, start, end, ...(metadata cols)...}
 
 \item{bedB}{A tibble BED with columns: chrom, start, end, ...(metadata cols)...}
 
+\item{bedA_groups}{A character vector of data variable(s) in bedA upon which to group data and perform the test on each group of intervals separately}
+
 \item{genome}{A tibble BED of chromosome sizes with columns: chrom, size}
 
-\item{bedA_groups}{A character vector of data variable(s) in bedA upon which to group data and perform the test on each group of intervals separately}
+\item{...}{Expressions that return a logical value upon which to filter the Fisher results table (thresholds for test output values)}
 }
 \value{
 The outcome of the Fisher test(s) on the overlaps between bedA and bedB

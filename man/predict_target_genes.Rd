@@ -8,7 +8,8 @@ predict_target_genes(
   varfile,
   trait = NULL,
   tissue = NULL,
-  outdir = ".",
+  outDir = ".",
+  contactDir = "/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/3C/",
   variant_to_gene_max_distance = 2e+06
 )
 }
@@ -19,7 +20,9 @@ predict_target_genes(
 
 \item{tissue}{The tissue(s) of action for the trait.}
 
-\item{outdir}{The output directory in which to save the predictions. Default is current directory.}
+\item{outDir}{The output directory in which to save the predictions. Default is current directory.}
+
+\item{contactDir}{The directory containing contact data.}
 
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb.}
 }
