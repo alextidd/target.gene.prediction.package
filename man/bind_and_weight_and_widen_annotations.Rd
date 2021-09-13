@@ -4,14 +4,14 @@
 \alias{bind_and_weight_and_widen_annotations}
 \title{Bind and weight and widen annotation tibbles}
 \usage{
-bind_and_weight_and_widen_annotations(id_cols, annotation_level, ...)
+bind_and_weight_and_widen_annotations(id_cols, annotation.level, ...)
 }
 \arguments{
 \item{id_cols}{Vector of column names that uniquely identifies each observation, sent to pivot_wider(id_cols)}
 
 \item{...}{The long-format annotation tibble(s) to bind and widen}
 
-\item{annotation.level}{Name of the annotation level (e.g. pair, gene, variant) that the annotations fall within}
+\item{annotation_level}{Name of the annotation level (e.g. pair, gene, variant) that the annotations fall within}
 }
 \value{
 Wide-format annotation dataframe, with only one observation per row and only one annotation per column

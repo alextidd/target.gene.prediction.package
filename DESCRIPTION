@@ -19,7 +19,8 @@ Imports:
     tidyr,
     readr,
     purrr,
-    utils
+    utils,
+    tidymodels
 Depends:
     R (>= 2.10)
 Suggests: 

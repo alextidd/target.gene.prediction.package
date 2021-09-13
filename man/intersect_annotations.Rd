@@ -9,7 +9,7 @@ intersect_annotations(query, annots = annotations)
 \arguments{
 \item{query}{A query bed}
 
-\item{annotations}{A list of BED tibbles to be intersected by the query bed (metadata columns will form the annotation name)}
+\item{annotats}{A list of BED tibbles to be intersected by the query bed (metadata columns will form the annotation name)}
 }
 \value{
 A tibble of intersected columns, with .query and .annotation suffixes

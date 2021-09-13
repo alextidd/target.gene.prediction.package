@@ -8,7 +8,7 @@
 #'
 #' @return A paired (first + last) list representation of the BEDPE file as two valr-compatible tibble BEDs with an ID column matching pairs, optionally with metadata columns
 #' @export
-import_BEDPE_to_List <- function(bedpefile, metadata_cols = NULL) {
+import_BEDPE_to_List <- function(bedpefile, metadata_cols = NULL, prefix_InteractionID = NULL) {
 
   # silence "no visible binding" NOTE for data variables
   . <- NULL
@@ -32,6 +32,12 @@ import_BEDPE_to_List <- function(bedpefile, metadata_cols = NULL) {
                .
             } %>%
            dplyr::mutate(InteractionID = dplyr::row_number() %>% paste0("i.",.)) %>%
+           {
+             if(!is.null(prefix_InteractionID))
+               dplyr::mutate(., InteractionID = paste(prefix_InteractionID, InteractionID, sep = "_"))
+             else
+               .
+           } %>%
            dplyr::select(c("chrom", "start", "end", "InteractionID", metadata_cols))
   )
 

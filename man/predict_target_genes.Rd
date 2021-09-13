@@ -8,7 +8,7 @@ predict_target_genes(
   varfile,
   trait = NULL,
   tissue = NULL,
-  outDir = ".",
+  outDir = "test_output",
   contactDir = "/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/3C/",
   variant_to_gene_max_distance = 2e+06
 )

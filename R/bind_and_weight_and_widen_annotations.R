@@ -10,17 +10,16 @@
 #'
 #' @return Wide-format annotation dataframe, with only one observation per row and only one annotation per column
 #' @export
-bind_and_weight_and_widen_annotations <- function(id_cols, annotation_level, ...){
+bind_and_weight_and_widen_annotations <- function(id_cols, annotation.level, ...){
 
   # BIND
   dplyr::bind_rows(...) %>%
   # WEIGHT
-    dplyr::mutate(annotation.level = annotation_level,
-                  annotation.value = annotation.value * annotation.weight) %>%
+    dplyr::mutate(annotation.value = annotation.value * annotation.weight) %>%
   # WIDEN
-    tidyr::pivot_wider(df,
-                       id_cols = id_cols,
-                       names_from = c(annotation.level, annotation.name),
+    tidyr::pivot_wider(id_cols = dplyr::all_of(id_cols),
+                       names_from = annotation.name,
+                       names_prefix = paste0(annotation.level, "_"),
                        values_from = annotation.value) %>%
     readr::type_convert() ## TODO: silence column specification output
 

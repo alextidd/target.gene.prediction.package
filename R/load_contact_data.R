@@ -15,7 +15,7 @@ load_contact_data <- function(contactDir){
   for(file in list.files(contactDir, pattern = "bedpe", full.names = T)){
     info <- basename(file) %>%  sub("(.*)\\..*$", "\\1", .)
     contact[[info]] <- target.gene.prediction.package::import_BEDPE_to_List(
-      file, metadata_cols = c("score", "CellType")
+      file, metadata_cols = c("score", "CellType"), prefix_InteractionID = info
       ) %>%
       purrr::map(~ .x %>%
                    # for infinite score values, set equal to the maximum non-infinite score
@@ -23,6 +23,28 @@ load_contact_data <- function(contactDir){
                                                           TRUE ~ score)) %>%
                    # normalise score col to maximum
                    dplyr::mutate(score = score/max(score)))
+
+    # find duplicate, mirrored loop entries within each dataset and filter to exclude the non-maximum scores
+    IDs_to_exclude <- dplyr::full_join(contact[[info]]$first, contact[[info]]$last, by = "InteractionID") %>%
+      dplyr::rowwise()%>%
+      dplyr::mutate(loop_ends = paste(min(start.x, start.y), min(end.x, end.y), max(start.x, start.y), max(end.x, end.y), sep = ".")) %>%
+      dplyr::group_by(loop_ends) %>%
+      dplyr::mutate(count = dplyr::n()) %>%
+      dplyr::filter(count > 1,
+                    score.x != max(score.x)) %>%
+      dplyr::pull(InteractionID)
+
+    if(length(IDs_to_exclude) > 0){
+      message(length(IDs_to_exclude), "loops are duplicates. Each group of loops with identical ends is filtered to only include the maximum-scoring loop.")
+      contact[[info]] <- contact[[info]] %>%
+        purrr::map(~ .x %>%
+                     # exclude lower-scoring duplicates
+                     dplyr::filter(InteractionID %ni% IDs_to_exclude)
+                   )
+    }
   }
+
   return(contact)
 }
+
+

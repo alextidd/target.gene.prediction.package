@@ -4,7 +4,11 @@
 \alias{import_BEDPE_to_List}
 \title{Import a BEDPE}
 \usage{
-import_BEDPE_to_List(bedpefile, metadata_cols = NULL)
+import_BEDPE_to_List(
+  bedpefile,
+  metadata_cols = NULL,
+  prefix_InteractionID = NULL
+)
 }
 \arguments{
 \item{bedpefile}{A tab-delimited file in bedpe format with columns: chromA, startA, endA, chromB, startB, endB, ...(metadata cols)...}

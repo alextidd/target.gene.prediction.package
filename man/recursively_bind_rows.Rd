@@ -4,12 +4,14 @@
 \alias{recursively_bind_rows}
 \title{Recursively bind rows}
 \usage{
-recursively_bind_rows(nested_list, nest_names = NULL)
+recursively_bind_rows(nested_list, nest_names, unnest_dataframes = FALSE)
 }
 \arguments{
-\item{nested_list}{The nested list}
+\item{nested_list}{The nested list. The list must have a uniform nesting structure (every branch goes to the same depth).}
 
-\item{nest_names}{The names of each successive nesting of the list. If none provided, nest1, nest2, nest3, ... will be used}
+\item{nest_names}{The names of each successive nesting of the list.}
+
+\item{unnest_dataframes}{Logical. Data frames are essentially lists. The unnesting will preserve data frames in the deepest nest unless this is set to TRUE.}
 }
 \value{
 A recursively row-bound tibble, with nested list names as added ID columns.
