@@ -6,7 +6,8 @@
 #' @param trait The name of the trait of interest.
 #' @param tissue The tissue(s) of action for the trait.
 #' @param outDir The output directory in which to save the predictions. Default is current directory.
-#' @param contactDir The directory containing contact data.
+#' @param referenceDir The directory containing the external, accompanying reference data.
+#' @param driversFile The file containing a list of driver gene symbols
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb.
 #'
 #' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
@@ -14,12 +15,13 @@
 predict_target_genes <- function(varfile,
                                  trait = NULL,
                                  tissue = NULL,
-                                 outDir = "test_output",
-                                 contactDir = "/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/3C/",
+                                 outDir = "out",
+                                 referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
+                                 driversFile = "/working/lab_georgiat/alexandT/target_gene_prediction_paper/data/Traits/BC/KnownGenes/breast_cancer_drivers_2021.txt",
                                  variant_to_gene_max_distance = 2e6){
 
   # for testing:
-  # variants=BCVars %>% dplyr::select(chrom:cs); trait="BC"; outDir="test_output"; contactDir="/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/3C/"; variant_to_gene_max_distance=2e6
+  # library(devtools) ; load_all() ; variants=BCVars %>% dplyr::select(chrom:cs); trait="BC"; outDir="test_output"; referenceDir="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; driversFile = "/working/lab_georgiat/alexandT/target_gene_prediction_paper/data/Traits/BC/KnownGenes/breast_cancer_drivers_2021.txt" ; variant_to_gene_max_distance=2e6
 
   # silence "no visible binding" NOTE for data variables
   . <- variant <- enst <- start.variant <- start.TSS <- variant.variant <- enst.TSS <- score <- annotation <- estimate <-
@@ -33,33 +35,36 @@ predict_target_genes <- function(varfile,
   outPR <- paste0(outBase, "PrecisionRecall.pdf")
 
   # import the variants
-  variants <- target.gene.prediction.package::import_BED(varfile,
-                                                         metadata_cols = c("variant", "cs"))
+  variants <- target.gene.prediction.package::import_BED(
+    varfile,
+    metadata_cols = c("variant", "cs"))
 
   # import the contact data
-  contact <- load_contact_data(contactDir = contactDir)
+  contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
 
-  # list annotations to be used by intersect_annotations() (must be a list of BED tibbles)
-  annotations <- list(
-      DHSs = target.gene.prediction.package::DHSs %>%
-        target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType", "Bin")) %>%
-        dplyr::mutate(annotation.description = paste(Bin, "of DHSs binned by", Method, "of", Mark, "annotations in",
-                                                     target.gene.prediction.package::DHSs_metadata$name[target.gene.prediction.package::DHSs_metadata==CellType]))
-  )
-  ## TODO: DHSs object is internally saved as a nested list to conserve memory, might externalise ?
-  ## TODO: fix the annotations.rda problem (save online somewhere / GitHub LFS?)
-  ## TODO: change `annotations` back to `target.gene.prediction.package::annotations` in this script
+  # import the DHSs data
+  DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) %>%
+    target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType"))
+
+  # load drivers and check that all symbols are in the GENCODE data
+  drivers <- target.gene.prediction.package::read_tibble(driversFile)$V1
+  # check that all symbols are in the GENCODE data
+  drivers_NotFound <- drivers[drivers %ni% target.gene.prediction.package::TSSs$symbol]
+  if(length(drivers_NotFound) > 0){
+    message(dplyr::n_distinct(drivers_NotFound),
+            " provided driver gene(s) from '", basename(driversFile), "' are not found in the GENCODE gene symbols and therefore cannot be considered.",
+            "\nUnknown genes: ", paste(drivers_NotFound, sep="", collapse=", "))
+  }
 
   # ======================================================================================================
   # #### 1) CELL TYPE ENRICHMENT ####
   cat("1) Cell type enrichment...\n")
 
-  specificity_enriched_celltypes <- target.gene.prediction.package::DHSs %>%
-    target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType", "Bin")) %>%
+  specificity_enriched_celltypes <- DHSs %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
     dplyr::filter(Method == "specificity",
                   Mark == "H3K27ac",
-                  Bin == "bin10") %>%
+                  decile == 10) %>%
     target.gene.prediction.package::bed_fisher_grouped(
       bedA = .,
       bedA_groups = "CellType",
@@ -69,19 +74,17 @@ predict_target_genes <- function(varfile,
       estimate > 2,
       p.value < 0.05
     ) %>%
-    # Extract enriched cell types - specificity | H3K27ac | {{ CellType }} | quartiles | 4
+    # Extract enriched cell types
     dplyr::pull(CellType) %>%
     {dplyr::filter(target.gene.prediction.package::DHSs_metadata, code %in% .)}
 
   cat("Enriched cell types: ", specificity_enriched_celltypes$code)
 
   # Filter to annotations for enriched tissue(s)
-  target.gene.prediction.package::contact_metadata %>%
-    dplyr::filter(Tissue %in% specificity_enriched_celltypes$tissue) %>%
-    dplyr::pull(element_name)
-  target.gene.prediction.package::DHSs_metadata %>%
-    dplyr::filter(tissue %in% specificity_enriched_celltypes$tissue) %>%
-    dplyr::pull(element_name)
+  contact_enriched <- target.gene.prediction.package::contact_metadata %>%
+    dplyr::filter(Tissue %in% specificity_enriched_celltypes$tissue)
+  DHSs_enriched <- target.gene.prediction.package::DHSs_metadata %>%
+    dplyr::filter(tissue %in% specificity_enriched_celltypes$tissue)
 
   # ======================================================================================================
   # #### 2a) GENE-LEVEL INPUTS ####
@@ -90,17 +93,12 @@ predict_target_genes <- function(varfile,
 
   # intersect with list of genomic annotations
   gene_annotations <- target.gene.prediction.package::TSSs %>%
-    target.gene.prediction.package::intersect_annotations() %>%
-    dplyr::transmute(enst = enst.query,
-                     annotation.name = annotation.annotation,
-                     annotation.description = annotation.description.annotation,
-                     annotation.value = 1,
-                     annotation.weight = 1)
+    target.gene.prediction.package::intersect_DHSs(enst)
 
   # bind and widen all gene-level annotations
   weighted_gene_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = "enst",
-    annotation.level = "gene",
+    annotation.level = "g",
     gene_annotations
   )
 
@@ -111,11 +109,7 @@ predict_target_genes <- function(varfile,
 
   # intersect with list of genomic annotations
   variant_annotations <- variants %>%
-    target.gene.prediction.package::intersect_annotations() %>%
-    dplyr::transmute(variant = variant.query,
-                     annotation.name = annotation.annotation,
-                     annotation.value = 1,
-                     annotation.weight = 1)
+    target.gene.prediction.package::intersect_DHSs(variant)
 
   # calculate n genes near each variant
   variant_n_genes <- variants %>%
@@ -131,7 +125,7 @@ predict_target_genes <- function(varfile,
   # bind and widen all variant-level annotations
   weighted_variant_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = "variant",
-    annotation.level = "variant",
+    annotation.level = "v",
     variant_annotations,
     variant_n_genes
   )
@@ -172,7 +166,7 @@ predict_target_genes <- function(varfile,
                          cs,
                          enst,
                          InteractionID,
-                         annotation.value = 1,
+                         annotation.value = score,
                          annotation.weight = 1)) %>%
     dplyr::bind_rows(.id = "annotation.name") %>%
     # Make sure all interactions are within 2Mb - hard filter, ignore everything higher
@@ -230,7 +224,7 @@ predict_target_genes <- function(varfile,
   # -> wide-format (one row per gene-variant pair, one column per annotation)
   # -> only variant-gene combinations with at least one pair annotation (HiChIP interaction, nearest or within 2Mb) are included
   # -> pair ID columns: | variant | enst |
-  # -> annotation columns: | pair_* | gene_* | variant_* |
+  # -> annotation columns: | g_* | v_* | gxv_* | gxc_*
   cat("3) Generating master table of gene x", trait, "variant pairs, with all annotation levels (genes, variants, gene-variant pairs, gene-credible set pairs)...\n")
   master <- variants %>%
     dplyr::select(variant, cs) %>%
@@ -248,7 +242,7 @@ predict_target_genes <- function(varfile,
   predictions_full <- master %>%
     # Add drivers column
     dplyr::left_join(target.gene.prediction.package::TSSs %>% dplyr::select(enst, symbol)) %>%
-    dplyr::mutate(driver = symbol %in% target.gene.prediction.package::drivers) %>%
+    dplyr::mutate(driver = symbol %in% drivers) %>%
     # Filtering to only consider CSs with at least 1 driver gene within variant_to_gene_max_distance
     dplyr::group_by(cs) %>%
     dplyr::group_modify(~ .x %>%
@@ -270,7 +264,6 @@ predict_target_genes <- function(varfile,
 
   # save output predictions table
   predictions %>%
-    dplyr::filter(prediction) %>%
     dplyr::select(cs, variant, symbol, score) %>%
     write.table(outPredictions,
                 quote = F, row.names = F, sep = "\t")
@@ -289,6 +282,7 @@ predict_target_genes <- function(varfile,
 
 
   pdf(outPR, height = 10, onefile = T)
+  PR %>%
   PR_all %>%
     dplyr::select(prediction_type, AUC, level) %>%
     dplyr::distinct() %>%
@@ -299,7 +293,8 @@ predict_target_genes <- function(varfile,
     ggplot2::coord_flip() +
     ggplot2::labs(x = "Predictor", y = "PR AUC")
   PR_all %>%
-    dplyr::filter(.threshold %ni% c(0, Inf, -Inf) & recall != 1) %>%
+    dplyr::filter(.threshold %ni% c(0, Inf, -Inf) & recall != 1,
+                  grepl("gxv_", prediction_type)) %>%
     dplyr::mutate(line = dplyr::n() > 1,
                   point = dplyr::n() == 1) %>%
     ggplot2::ggplot(ggplot2::aes(x = precision,

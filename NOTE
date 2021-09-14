@@ -1,0 +1,138 @@
+checking Rd \usage sections ... WARNING
+  Undocumented arguments in documentation object 'bind_and_weight_and_widen_annotations'
+    ‘annotation.level’
+  Documented arguments not in \usage in documentation object 'bind_and_weight_and_widen_annotations':
+    ‘annotation_level’
+
+  Undocumented arguments in documentation object 'import_BEDPE_to_List'
+    ‘prefix_InteractionID’
+
+  Undocumented arguments in documentation object 'intersect_annotations'
+    ‘annots’
+  Documented arguments not in \usage in documentation object 'intersect_annotations':
+    ‘annotats’
+
+  Functions with \usage entries need to have the appropriate \alias
+  entries, and all their arguments documented.
+  The \usage entries must correspond to syntactically valid R code.
+  See chapter ‘Writing R documentation files’ in the ‘Writing R
+  Extensions’ manual.
+
+> checking installed package size ... NOTE
+    installed size is 117.4Mb
+    sub-directories of 1Mb or more:
+      data  117.3Mb
+
+> checking for future file timestamps ... NOTE
+  unable to verify current time
+
+> checking top-level files ... NOTE
+  Non-standard file/directory found at top level:
+    ‘test_output’
+
+> checking R code for possible problems ... NOTE
+  bind_and_weight_and_widen_annotations: no visible binding for global
+    variable ‘annotation.value’
+  bind_and_weight_and_widen_annotations: no visible binding for global
+    variable ‘annotation.weight’
+  bind_and_weight_and_widen_annotations: no visible binding for global
+    variable ‘annotation.name’
+  condition_n_genes: no visible binding for global variable ‘symbol’
+  get_PR: no visible binding for global variable ‘driver’
+  get_PR: no visible binding for global variable ‘prediction_type’
+  get_PR: no visible binding for global variable ‘prediction’
+  get_PR: no visible binding for global variable ‘.estimate’
+  get_performance: no visible binding for global variable ‘prediction’
+  get_performance: no visible binding for global variable ‘symbol’
+  get_performance: no visible binding for global variable ‘driver’
+  get_performance: no visible global function definition for
+    ‘fisher.test’
+  get_performance: no visible binding for global variable ‘TP’
+  get_performance: no visible binding for global variable ‘FP’
+  get_performance: no visible binding for global variable ‘FN’
+  get_performance: no visible binding for global variable ‘TN’
+  get_performance: no visible binding for global variable ‘Precision’
+  import_BEDPE_to_List : <anonymous>: no visible binding for global
+    variable ‘InteractionID’
+  intersect_annotations: no visible binding for global variable
+    ‘annotations’
+  intersect_annotations: no visible binding for global variable ‘type’
+  intersect_annotations: no visible binding for global variable ‘.’
+  load_contact_data: no visible binding for global variable ‘.’
+  load_contact_data: no visible binding for global variable ‘start.x’
+  load_contact_data: no visible binding for global variable ‘start.y’
+  load_contact_data: no visible binding for global variable ‘end.x’
+  load_contact_data: no visible binding for global variable ‘end.y’
+  load_contact_data: no visible binding for global variable ‘loop_ends’
+  load_contact_data: no visible binding for global variable ‘count’
+  load_contact_data: no visible binding for global variable ‘score.x’
+  load_contact_data: no visible binding for global variable
+    ‘InteractionID’
+  predict_target_genes: no visible binding for global variable ‘Bin’
+  predict_target_genes: no visible binding for global variable ‘Method’
+  predict_target_genes: no visible binding for global variable ‘Mark’
+  predict_target_genes: no visible binding for global variable ‘CellType’
+  predict_target_genes: no visible binding for global variable ‘code’
+  predict_target_genes: no visible binding for global variable ‘Tissue’
+  predict_target_genes: no visible binding for global variable
+    ‘element_name’
+  predict_target_genes: no visible binding for global variable
+    ‘annotation.description.annotation’
+  predict_target_genes: no visible binding for global variable
+    ‘pair.distance’
+  predict_target_genes: no visible binding for global variable
+    ‘cs.variant’
+  predict_target_genes: no visible binding for global variable
+    ‘pair.inverse_distance’
+  predict_target_genes: no visible binding for global variable ‘cs’
+  predict_target_genes: no visible binding for global variable ‘.dist’
+  predict_target_genes: no visible binding for global variable
+    ‘InteractionID’
+  predict_target_genes: no visible binding for global variable
+    ‘n_gene_x_cs_interactions’
+  predict_target_genes: no visible binding for global variable ‘symbol’
+  predict_target_genes: no visible binding for global variable
+    ‘cs_n_drivers’
+  predict_target_genes: no visible global function definition for ‘where’
+  predict_target_genes: no visible binding for global variable
+    ‘prediction’
+  predict_target_genes: no visible binding for global variable
+    ‘max_score’
+  predict_target_genes: no visible binding for global variable ‘driver’
+  predict_target_genes: no visible global function definition for
+    ‘write.table’
+  predict_target_genes: no visible binding for global variable
+    ‘gxv_inverse_distance_within_max_distance’
+  predict_target_genes: no visible binding for global variable
+    ‘gene_DHSs_specificity_H3K27ac_E129_bin10’
+  predict_target_genes: no visible binding for global variable
+    ‘prediction_type’
+  predict_target_genes: no visible global function definition for ‘pdf’
+  predict_target_genes: no visible binding for global variable ‘AUC’
+  predict_target_genes: no visible binding for global variable ‘level’
+  predict_target_genes: no visible global function definition for
+    ‘reorder’
+  predict_target_genes: no visible binding for global variable
+    ‘.threshold’
+  predict_target_genes: no visible binding for global variable ‘recall’
+  predict_target_genes: no visible binding for global variable
+    ‘precision’
+  predict_target_genes: no visible binding for global variable ‘line’
+  predict_target_genes: no visible binding for global variable ‘point’
+  predict_target_genes: no visible global function definition for
+    ‘dev.off’
+  Undefined global functions or variables:
+    . .dist .estimate .threshold AUC Bin CellType FN FP InteractionID
+    Mark Method Precision TN TP Tissue annotation.description.annotation
+    annotation.name annotation.value annotation.weight annotations code
+    count cs cs.variant cs_n_drivers dev.off driver element_name end.x
+    end.y fisher.test gene_DHSs_specificity_H3K27ac_E129_bin10
+    gxv_inverse_distance_within_max_distance level line loop_ends
+    max_score n_gene_x_cs_interactions pair.distance
+    pair.inverse_distance pdf point precision prediction prediction_type
+    recall reorder score.x start.x start.y symbol type where write.table
+  Consider adding
+    importFrom("grDevices", "dev.off", "pdf")
+    importFrom("stats", "fisher.test", "line", "reorder")
+    importFrom("utils", "write.table")
+  to your NAMESPACE file

@@ -5,12 +5,14 @@
 #' BEDPE list objects, add an InteractionID column and normalise the score column within
 #' each sample.
 #'
-#' @param contactDir The directory in which the package's accompanying contact data is stored.
+#' @param referenceDir The directory in which the package's accompanying data is stored
+#' (contact data is in the contact/ subdirectory).
 #' Files must have columns ( chrA | startA | endA | chrB | startB | endB | score | celltype ) and *.bedpe file extension.
 #'
 #' @return `contact` object (list of BEDPE lists containing loops and their normalised scores for multiple cell types)
 #' @export
-load_contact_data <- function(contactDir){
+load_contact_data <- function(referenceDir){
+  contactDir <- paste0(referenceDir, "contact/")
   contact <- list()
   for(file in list.files(contactDir, pattern = "bedpe", full.names = T)){
     info <- basename(file) %>%  sub("(.*)\\..*$", "\\1", .)
@@ -29,13 +31,13 @@ load_contact_data <- function(contactDir){
       dplyr::rowwise()%>%
       dplyr::mutate(loop_ends = paste(min(start.x, start.y), min(end.x, end.y), max(start.x, start.y), max(end.x, end.y), sep = ".")) %>%
       dplyr::group_by(loop_ends) %>%
-      dplyr::mutate(count = dplyr::n()) %>%
-      dplyr::filter(count > 1,
+      dplyr::filter(dplyr::n() > 1,
                     score.x != max(score.x)) %>%
       dplyr::pull(InteractionID)
 
     if(length(IDs_to_exclude) > 0){
-      message(length(IDs_to_exclude), "loops are duplicates. Each group of loops with identical ends is filtered to only include the maximum-scoring loop.")
+      message(length(IDs_to_exclude), " / ", dplyr::n_distinct(contact[[info]]$first$InteractionID),
+              " loops are duplicates. Each group of loops with identical ends is filtered to only include the maximum-scoring loop.")
       contact[[info]] <- contact[[info]] %>%
         purrr::map(~ .x %>%
                      # exclude lower-scoring duplicates
