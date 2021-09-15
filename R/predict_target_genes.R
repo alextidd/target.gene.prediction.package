@@ -137,21 +137,36 @@ predict_target_genes <- function(varfile,
   cat("2c) Annotating gene x", trait, "variant pairs...\n")
 
   # TSS distance scoring method (these pairings are the only ones to consider)
-  gene_x_variant_distance_score <- variants %>%
-    # Get genes within 1Mb of each variant
+  gene_x_variant_distance <- variants %>%
+    # Get genes within variant_to_gene_max_distance of each variant
     valr::bed_slop(both = variant_to_gene_max_distance,
                    genome = target.gene.prediction.package::ChrSizes,
                    trim = T) %>%
     valr::bed_intersect(., target.gene.prediction.package::TSSs,
                         suffix = c(".variant", ".TSS")) %>%
+    dplyr::group_by(variant.variant) %>%
     # Calculate inverse of the absolute bp distance for each variant-gene pair
     dplyr::mutate(pair.distance = abs((start.variant + variant_to_gene_max_distance) - start.TSS),
-                  pair.inverse_distance = 1/pair.distance) %>%
-    dplyr::transmute(variant = variant.variant,
-                     cs = cs.variant,
-                     enst = enst.TSS,
+                  pair.inverse_distance = 1/pair.distance,
+                  # ranking transcript TSSs (if two transcript TSSs are equidistant to the variant, they will receive the same, lower rank)
+                  pair.distance_rank = rank(pair.distance, ties.method = "min")) %>%
+    dplyr::select(variant = variant.variant,
+                  cs = cs.variant,
+                  enst = enst.TSS,
+                  pair.inverse_distance,
+                  pair.distance_rank)
+
+  gene_x_variant_distance_score <- gene_x_variant_distance %>%
+    dplyr::transmute(variant, cs, enst,
                      annotation.name = "inverse_distance_within_max_distance",
                      annotation.value = pair.inverse_distance,
+                     annotation.weight = 1)
+
+  # variant-TSS distance rank method
+  gene_x_variant_distance_rank <- gene_x_variant_distance %>%
+    dplyr::transmute(variant, cs, enst,
+                     annotation.name = "distance_rank_within_max_distance",
+                     annotation.value = pair.distance_rank,
                      annotation.weight = 1)
 
   # intersect loop ends, by cell type, with user-provided variants and gene TSSs
@@ -170,20 +185,16 @@ predict_target_genes <- function(varfile,
                          annotation.weight = 1)) %>%
     dplyr::bind_rows(.id = "annotation.name") %>%
     # Make sure all interactions are within 2Mb - hard filter, ignore everything higher
-    dplyr::inner_join(gene_x_variant_distance_score %>% dplyr::select(variant, cs, enst))
+    dplyr::inner_join(gene_x_variant_distance %>% dplyr::select(variant, cs, enst))
   ## ~10% of variant-TSS interactions indicated by the contact data
   ## are further than 2Mb apart and are thus eliminated
 
   # nearest gene TSS method
-  gene_x_variant_closest <- valr::bed_closest(x = variants,
-                                              y = target.gene.prediction.package::TSSs,
-                                              suffix = c("", ".TSS")) %>%
-    # Make sure all interactions are within 2Mb, ignore everything higher
-    dplyr::filter(abs(.dist) < 2e6) %>%
-    dplyr::distinct() %>%
+  gene_x_variant_closest <- gene_x_variant_distance_rank %>%
+    dplyr::filter(annotation.value == 1) %>%
     dplyr::transmute(variant,
                      cs,
-                     enst = enst.TSS,
+                     enst = enst,
                      annotation.name = "nearest",
                      annotation.value = 1,
                      annotation.weight = 1)
