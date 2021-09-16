@@ -14,7 +14,7 @@ bind_and_weight_and_widen_annotations <- function(id_cols, annotation.level, ...
 
   # BIND
   dplyr::bind_rows(...) %>%
-  # WEIGHT
+  # WEIGHT (first normalise values to 1)
     dplyr::mutate(annotation.value = annotation.value * annotation.weight) %>%
   # WIDEN
     tidyr::pivot_wider(id_cols = dplyr::all_of(id_cols),

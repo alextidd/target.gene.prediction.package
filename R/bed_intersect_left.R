@@ -10,11 +10,12 @@
 #' @param bedB A tibble BED with columns: chrom, start, end, ...(metadata cols)...
 #' @param suffix A character vector of suffixes to add to metadata column names. (If the two input tibble BEDs share any common metadata column names, suffixes must be provided.)
 #' @param keepBcoords If TRUE, coordinates from bedB are retained in the metadata. Must provide unique suffix for bedB to avoid start/end column duplication. Default is TRUE.
+#' @param keepBmetadata If FALSE, bedB columns are dropped and only the original bedA columns are returned, filtered to those intervals that intersect with any bedB intervals.
 #' @param suffixMetadataCols If TRUE, suffixes are also added to the end of metadata column names, not just the coordinate columns. Default is FALSE.
 #'
 #' @return A tibble BED of all intervals from bedA that contain intersects with bedB, plus all metadata columns from both
 #' @export
-bed_intersect_left <- function(bedA, bedB, suffix = c("",""), keepBcoords = T, suffixMetadataCols = F){
+bed_intersect_left <- function(bedA, bedB, suffix = c("",""), keepBcoords = T, keepBmetadata = T, suffixMetadataCols = F){
 
   # silence "no visible binding" NOTE for data variables
   . <- start <- start.x <- end <- end.x <- .overlap <- NULL
@@ -34,6 +35,7 @@ bed_intersect_left <- function(bedA, bedB, suffix = c("",""), keepBcoords = T, s
         dplyr::rename_with(., ~ gsub("(?<=start|end).y$", suffix[2], ., perl = T)) %>%
         dplyr::rename_with(., ~ gsub(".[xy]$", "", .))
     } %>%
+    { if(!keepBmetadata) dplyr::select(., names(bedA)) %>% dplyr::distinct() else . } %>%
     dplyr::select(-.overlap)
 
 }
