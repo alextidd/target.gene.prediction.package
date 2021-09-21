@@ -26,6 +26,7 @@ bed_intersect_left <- function(bedA, bedB, suffix = c("",""), keepBcoords = T, k
   # Left join intersect
   bedA %>%
     valr::bed_intersect(bedB) %>%
+    dplyr::select(-.overlap) %>%
     dplyr::rename(start = start.x, end = end.x) %>%
     { if(!keepBcoords) dplyr::select(., -c("start.y", "end.y")) else . } %>%
     { if(suffixMetadataCols)
@@ -35,8 +36,14 @@ bed_intersect_left <- function(bedA, bedB, suffix = c("",""), keepBcoords = T, k
         dplyr::rename_with(., ~ gsub("(?<=start|end).y$", suffix[2], ., perl = T)) %>%
         dplyr::rename_with(., ~ gsub(".[xy]$", "", .))
     } %>%
-    { if(!keepBmetadata) dplyr::select(., names(bedA)) %>% dplyr::distinct() else . } %>%
-    dplyr::select(-.overlap)
+    { if(!keepBmetadata & !keepBcoords)
+        dplyr::select(., dplyr::any_of(c(names(bedA), paste0(names(bedA), suffix[1]))))
+      else if (!keepBmetadata & keepBcoords)
+        dplyr::select(., dplyr::any_of(c(names(bedA), paste0(names(bedA), suffix[1]), paste0(c("start", "end"), suffix[2]))))
+      else
+        .
+    }  %>%
+    dplyr::distinct()
 
 }
 
