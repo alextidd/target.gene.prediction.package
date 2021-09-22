@@ -31,7 +31,7 @@ predict_target_genes <- function(varfile,
     NULL
 
   # define the output
-  dir.create(outDir)
+  dir.create(outDir, recursive = T)
   out <- list()
   out$Base <- paste0(outDir,"/") %>% { if(!is.null(trait)) paste0(., trait, "_") else . }
   out$Annotations <- paste0(out$Base, "target_gene_annotations.tsv")
@@ -56,7 +56,8 @@ predict_target_genes <- function(varfile,
 
   # import the DHSs data
   DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) %>%
-    target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType"))
+    target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType")) %>%
+    dplyr::mutate(DHS = paste0(chrom, ":", start, "-", end))
   DHSs_metadata <- readRDS(paste0(referenceDir, "DHSs/DHSs_metadata.rda"))
 
   # configure base weightings (not factoring in celltype enrichment)
@@ -71,7 +72,8 @@ predict_target_genes <- function(varfile,
     gxc = list(
       multicontact = 3),
     gxd = list(
-      multicontact = 3)
+      multicontact = 3,
+      closest = 1)
   )
 
   # ======================================================================================================
@@ -159,6 +161,7 @@ predict_target_genes <- function(varfile,
   # ======================================================================================================
   # #### 3f) GENE-X-CS-LEVEL INPUTS ####
   gxc <- get_gxc_level_annotations()
+  # bind and widen all gene-x-cs-level annotations
   weighted_gxc_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = c("cs", "enst"),
     annotation.level = "gxc",
@@ -168,7 +171,7 @@ predict_target_genes <- function(varfile,
   # ======================================================================================================
   # #### 3g) GENE-X-DHS-LEVEL INPUTS ####
   gxd <- get_gxd_level_annotations()
-  # bind and widen annotations
+  # bind and widen all gene-x-DHS-level annotations
   weighted_gxd_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = c("DHS", "enst"),
     annotation.level = "gxd",
@@ -264,17 +267,21 @@ predict_target_genes <- function(varfile,
       ggplot2::coord_flip() +
       ggplot2::labs(x = "Predictor", y = "PR AUC")
     performance_all$PR %>%
-      plot_PR(colour = prediction_method)
+      dplyr::filter(AUC == max(AUC)) %>%
+      plot_PR(colour = prediction_method) +
+      ggplot2::theme(legend.position = "none")
     performance_all$PR %>%
-      dplyr::select(prediction_method, AUC) %>%
+      dplyr::select(prediction_method, prediction_type, AUC) %>%
+      dplyr::filter(prediction_type == "score") %>%
+      dplyr::distinct() %>%
       dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
       dplyr::distinct() %>%
-      ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, AUC),
-                          y = AUC,
-                          fill = level)) +
-      ggplot2::geom_col(position = "dodge") +
-      ggplot2::coord_flip() +
-      ggplot2::labs(x = "Predictor", y = "PR AUC")
+      ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, AUC),
+                                   y = AUC,
+                                   fill = level)) +
+      ggplot2::geom_col() +
+      ggplot2::labs(x = "Predictor", y = "PR AUC") +
+      ggplot2::facet_wrap( ~ level, scales = "free_x")
   dev.off()
 
   # ======================================================================================================
