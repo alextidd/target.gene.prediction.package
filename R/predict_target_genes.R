@@ -61,13 +61,17 @@ predict_target_genes <- function(varfile,
 
   # configure base weightings (not factoring in celltype enrichment)
   weight <- list(
-    v_n_genes = 1,
-    gxv_distance_score = 1,
-    gxv_distance_rank = 1,
-    gxv_closest = 1,
-    gxv_contact = 2,
-    gxc_multicontact = 3,
-    gxd_multicontact = 3
+    v = list(
+      n_genes = 1),
+    gxv = list(
+      distance_score = 1,
+      distance_rank = 1,
+      closest = 1,
+      contact = 2),
+    gxc = list(
+      multicontact = 3),
+    gxd = list(
+      multicontact = 3)
   )
 
   # ======================================================================================================
@@ -102,34 +106,74 @@ predict_target_genes <- function(varfile,
   # ======================================================================================================
   # #### 3a) ENHANCER-LEVEL INPUTS ####
   # (Intersection with list of annotations, enhancers, GWAS statistics(?), etc...)
-  weighted_v_annotations <- get_v_level_annotations()
+  v <- get_v_level_annotations()
+  # bind and widen all variant-level annotations
+  weighted_v_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
+    id_cols = "variant",
+    annotation.level = "v",
+    v
+  )
 
   # ======================================================================================================
   # #### 3b) GENE-LEVEL INPUTS ####
-  # (Intersection with list of annotations, expression profiles, etc...)
-  weighted_g_annotations <- get_g_level_annotations()
+  g <- get_g_level_annotations()
+  # bind and widen all gene-level annotations
+  weighted_g_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
+    id_cols = "enst",
+    annotation.level = "g",
+    g
+  )
 
   # ======================================================================================================
   # #### 3c) DHS-LEVEL INPUTS ####
-  weighted_d_annotations <- get_d_level_annotations()
+  d <- get_d_level_annotations()
+  # bind and widen all DHS-level annotations
+  weighted_d_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
+    id_cols = "DHS",
+    annotation.level = "d",
+    d
+  )
 
   # ======================================================================================================
   # #### 3d) CS-LEVEL INPUTS ####
-  weighted_c_annotations <- get_c_level_annotations()
+  c <- get_c_level_annotations()
+  # bind and widen all CS-level annotations
+  weighted_c_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
+    id_cols = "cs",
+    annotation.level = "c",
+    c
+  )
 
   # ======================================================================================================
   # #### 3e) GENE-X-VARIANT-LEVEL INPUTS ####
   # (HiC interaction, distance, etc...)
   # The package will consider all genes as potential targets of a variant in CS's whose ranges are within the max distance
-  weighted_gxv_annotations <- get_gxv_level_annotations()
+  gxv <- get_gxv_level_annotations()
+  # bind and widen all gene-x-variant-level annotations
+  weighted_gxv_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
+    id_cols = c("variant", "cs", "enst"),
+    annotation.level = "gxv",
+    gxv
+  )
 
   # ======================================================================================================
   # #### 3f) GENE-X-CS-LEVEL INPUTS ####
-  weighted_gxc_annotations <- get_gxc_level_annotations()
+  gxc <- get_gxc_level_annotations()
+  weighted_gxc_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
+    id_cols = c("cs", "enst"),
+    annotation.level = "gxc",
+    gxc
+  )
 
   # ======================================================================================================
   # #### 3g) GENE-X-DHS-LEVEL INPUTS ####
-  weighted_gxd_annotations <- get_gxd_level_annotations()
+  gxd <- get_gxd_level_annotations()
+  # bind and widen annotations
+  weighted_gxd_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
+    id_cols = c("DHS", "enst"),
+    annotation.level = "gxd",
+    gxd
+  )
 
   # ======================================================================================================
   # #### 4) ALL INPUTS ####
@@ -220,15 +264,15 @@ predict_target_genes <- function(varfile,
       ggplot2::coord_flip() +
       ggplot2::labs(x = "Predictor", y = "PR AUC")
     performance_all$PR %>%
-      plot_PR() +
-      ggplot2::theme(legend.position = "none")
+      plot_PR(colour = prediction_method)
     performance_all$PR %>%
-      dplyr::select(prediction_type, AUC, level) %>%
+      dplyr::select(prediction_method, AUC) %>%
+      dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
       dplyr::distinct() %>%
       ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, AUC),
                           y = AUC,
                           fill = level)) +
-      ggplot2::geom_col() +
+      ggplot2::geom_col(position = "dodge") +
       ggplot2::coord_flip() +
       ggplot2::labs(x = "Predictor", y = "PR AUC")
   dev.off()
