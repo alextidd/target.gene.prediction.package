@@ -9,6 +9,7 @@ bed_intersect_left(
   bedB,
   suffix = c("", ""),
   keepBcoords = T,
+  keepBmetadata = T,
   suffixMetadataCols = F
 )
 }
@@ -20,6 +21,8 @@ bed_intersect_left(
 \item{suffix}{A character vector of suffixes to add to metadata column names. (If the two input tibble BEDs share any common metadata column names, suffixes must be provided.)}
 
 \item{keepBcoords}{If TRUE, coordinates from bedB are retained in the metadata. Must provide unique suffix for bedB to avoid start/end column duplication. Default is TRUE.}
+
+\item{keepBmetadata}{If FALSE, bedB columns are dropped and only the original bedA columns are returned, filtered to those intervals that intersect with any bedB intervals.}
 
 \item{suffixMetadataCols}{If TRUE, suffixes are also added to the end of metadata column names, not just the coordinate columns. Default is FALSE.}
 }

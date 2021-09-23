@@ -5,24 +5,30 @@
 \title{Predict target genes of a list of fine-mapped non-coding variants for a trait}
 \usage{
 predict_target_genes(
-  varfile,
   trait = NULL,
   tissue = NULL,
-  outDir = "test_output",
-  contactDir = "/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/3C/",
+  outDir = "out",
+ 
+    variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
+ 
+    driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
+ 
+    referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
   variant_to_gene_max_distance = 2e+06
 )
 }
 \arguments{
-\item{varfile}{A header-less BED file of fine-mapped trait-relevant variants, with metadata columns for the variant's name and the credible set it belongs to (chrom, start, stop, variant, cs)}
+\item{trait}{The name of the trait of interest}
 
-\item{trait}{The name of the trait of interest.}
+\item{tissue}{The tissue(s) of action for the trait}
 
-\item{tissue}{The tissue(s) of action for the trait.}
+\item{outDir}{The output directory in which to save the predictions. Default is current directory}
 
-\item{outDir}{The output directory in which to save the predictions. Default is current directory.}
+\item{variantsFile}{A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants}
 
-\item{contactDir}{The directory containing contact data.}
+\item{driversFile}{The file containing a list of driver gene symbols}
+
+\item{referenceDir}{The directory containing the external, accompanying reference data}
 
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb.}
 }

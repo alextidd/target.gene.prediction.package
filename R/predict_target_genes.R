@@ -194,13 +194,13 @@ predict_target_genes <- function(trait = NULL,
   master <- open_variants %>%
     dplyr::select(variant, cs, DHS) %>%
     # Get annotations for all genes with TSSs within variant_to_gene_max_distance of every variant
-    dplyr::right_join(  weighted_gxv_annotations      ) %>%
-    dplyr::left_join(   weighted_gxc_annotations      ) %>%
-    dplyr::left_join(   weighted_gxd_annotations      ) %>%
-    dplyr::left_join(   weighted_v_annotations        ) %>%
-    dplyr::left_join(   weighted_g_annotations        ) %>%
-    dplyr::left_join(   weighted_d_annotations        ) %>%
-    dplyr::left_join(   weighted_c_annotations        ) %>%
+    dplyr::right_join( weighted_gxv_annotations, by = c("variant", "cs")) %>%
+    dplyr::left_join(  weighted_gxc_annotations, by = c("cs", "enst")) %>%
+    dplyr::left_join(  weighted_gxd_annotations, by = c("DHS", "enst")) %>%
+    dplyr::left_join(  weighted_v_annotations,   by = "variant") %>%
+    dplyr::left_join(  weighted_g_annotations,   by = "enst") %>%
+    dplyr::left_join(  weighted_d_annotations,   by = "DHS") %>%
+    dplyr::left_join(  weighted_c_annotations,   by = "cs") %>%
     # Replace all NAs in numeric annotation value columns with 0
     dplyr::mutate_if(is.numeric, tidyr::replace_na, replace = 0) %>%
     # Add gene symbols and logical driver column (T/F)

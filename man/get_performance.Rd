@@ -4,7 +4,7 @@
 \alias{get_performance}
 \title{Get performance metrics for the predictions}
 \usage{
-get_performance(predictions)
+get_performance(predictions, prediction_col)
 }
 \arguments{
 \item{predictions}{Scores df in predict_target_genes function}
@@ -13,5 +13,6 @@ get_performance(predictions)
 `performance` object (performance)
 }
 \description{
+Limit predictions to credible sets with at least one driver within the maximum prediction distance.
 Calculate p-value, OR, precision, recall, sensitivity, specificity and F-score for the prediction.
 }

@@ -70,6 +70,26 @@ get_gxv_level_annotations <- function(open.variants = open_variants,
   ## ~10% of variant-TSS interactions indicated by the contact data
   ## are further than 2Mb apart and are thus eliminated
 
+  # get variants at promoters - score by sum of signal and specificity per enriched celltype at the DHS (~promoter activity)
+  gxv$promoter <- open.variants %>%
+    # Get variants within promoter regions
+    target.gene.prediction.package::bed_intersect_left(
+      target.gene.prediction.package::promoters,
+      keepBcoords = F, keepBmetadata = T) %>%
+    dplyr::left_join(enriched.DHSs %>% dplyr::select(-c(chrom:end))) %>%
+    tidyr::gather(key = "annotation",
+                  value = "annotation.value",
+                  dplyr::starts_with(c("specificity", "signal"))) %>%
+    dplyr::mutate(CellType = annotation %>% gsub(".*_", "", .)) %>%
+    dplyr::group_by(variant, enst, CellType) %>%
+    dplyr::mutate(annotation.value = sum(annotation.value)) %>%
+    dplyr::ungroup() %>%
+    dplyr::transmute(variant,
+                     enst,
+                     annotation.name = paste0(CellType, "_promoter_signal_plus_specificity"),
+                     annotation.value,
+                     annotation.weight = 1)
+
   # return
   return(gxv)
 }

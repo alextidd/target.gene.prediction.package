@@ -4,10 +4,11 @@
 \alias{load_contact_data}
 \title{Load contact (3C) data}
 \usage{
-load_contact_data(contactDir)
+load_contact_data(referenceDir)
 }
 \arguments{
-\item{contactDir}{The directory in which the package's accompanying contact data is stored.
+\item{referenceDir}{The directory in which the package's accompanying data is stored
+(contact data is in the contact/ subdirectory).
 Files must have columns ( chrA | startA | endA | chrB | startB | endB | score | celltype ) and *.bedpe file extension.}
 }
 \value{
