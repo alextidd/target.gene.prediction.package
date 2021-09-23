@@ -2,12 +2,14 @@ get_enriched <- function(DHSs, DHSs_metadata, variants){
   enriched <- list()
   enriched[["celltypes"]] <- DHSs %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
-    dplyr::filter(Method == "specificity",
-                  Mark == "H3K27ac",
-                  decile == 10) %>%
+    dplyr::select(chrom:DHS, dplyr::starts_with("specificity_H3K27ac")) %>%
+    tidyr::gather(key = "annotation",
+                  value = "decile",
+                  -c(chrom:DHS)) %>%
+    dplyr::filter(decile == 1) %>%
     target.gene.prediction.package::bed_fisher_grouped(
       bedA = .,
-      bedA_groups = "CellType",
+      bedA_groups = "annotation",
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
       # filter for effect and significance
@@ -15,7 +17,7 @@ get_enriched <- function(DHSs, DHSs_metadata, variants){
       p.value < 0.05
     ) %>%
     # Extract enriched cell types
-    dplyr::pull(CellType) %>%
+    dplyr::pull(annotation) %>% gsub(".*_", "", .) %>%
     {dplyr::filter(DHSs_metadata, code %in% .)}
   enriched[["tissues"]] <- DHSs_metadata %>%
     dplyr::filter(tissue %in% enriched$celltypes$tissue)

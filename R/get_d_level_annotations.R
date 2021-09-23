@@ -1,9 +1,9 @@
-get_d_level_annotations <- function(){
-  cat("Annotating", trait, "DHSs...\n")
+get_d_level_annotations <- function(open.variants = open_variants){
+  cat("Annotating DHSs...\n")
 
   d <- list()
 
-  d$annotations <- open_variants %>%
+  d$annotations <- open.variants %>%
     dplyr::group_by(DHS) %>%
     dplyr::transmute(DHS,
                      annotation.name = "inverse_n_variants_within_DHS",

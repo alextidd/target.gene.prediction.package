@@ -20,8 +20,7 @@ bind_and_weight_and_widen_annotations <- function(id_cols, annotation.level, ...
     tidyr::pivot_wider(id_cols = dplyr::all_of(id_cols),
                        names_from = annotation.name,
                        names_prefix = paste0(annotation.level, "_"),
-                       values_from = annotation.value) %>%
-    readr::type_convert() ## TODO: silence column specification output
+                       values_from = annotation.value)
 
 }
 

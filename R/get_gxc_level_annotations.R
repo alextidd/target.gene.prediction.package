@@ -1,9 +1,10 @@
-get_gxc_level_annotations <- function() {
-  cat("Annotating gene x", trait, "credible set pairs...\n")
+get_gxc_level_annotations <- function(gxv.contact = gxv$contact,
+                                      weight.gxc = weight$gxc) {
+  cat("Annotating gene x credible set pairs...\n")
 
   gxc <- list()
 
-  multicontact <- gxv$contact %>%
+  multicontact <- gxv.contact %>%
     # multicontact statistics within each gene-x-cs-x-experiment combination
     dplyr::group_by(cs, enst, annotation.name) %>%
     dplyr::mutate(
@@ -22,9 +23,7 @@ get_gxc_level_annotations <- function() {
                      InteractionID,
                      annotation.name = paste0("n_multicontact_", annotation.name),
                      annotation.value = inv_n_contacts,
-                     # weighting (more for enriched tissues)
-                     annotation.weight = dplyr::case_when(annotation.name %in% enriched_contact_elements ~ 2 * weight$gxc$multicontact,
-                                                          TRUE ~ weight$gxc$multicontact)) %>%
+                     annotation.weight = weight.gxc$multicontact) %>%
     dplyr::distinct()
 
   gxc$sum_multicontact <- multicontact %>%
@@ -34,9 +33,7 @@ get_gxc_level_annotations <- function() {
                      InteractionID,
                      annotation.name = paste0("sum_multicontact_", annotation.name),
                      annotation.value = inv_sum_contacts,
-                     # weighting (more for enriched tissues)
-                     annotation.weight = dplyr::case_when(annotation.name %in% enriched_contact_elements ~ 2 * weight$gxc$multicontact,
-                                                          TRUE ~ weight$gxc$multicontact)) %>%
+                     annotation.weight = weight.gxc$multicontact) %>%
     dplyr::distinct()
 
   # return

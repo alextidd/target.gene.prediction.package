@@ -2,7 +2,6 @@
 #'
 #' The master, user-facing function of this package.
 #'
-#' @param varfile A header-less BED file of fine-mapped trait-relevant variants, with metadata columns for the variant's name and the credible set it belongs to (chrom, start, stop, variant, cs)
 #' @param trait The name of the trait of interest
 #' @param tissue The tissue(s) of action for the trait
 #' @param outDir The output directory in which to save the predictions. Default is current directory
@@ -13,8 +12,7 @@
 #'
 #' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
 #' @export
-predict_target_genes <- function(varfile,
-                                 trait = NULL,
+predict_target_genes <- function(trait = NULL,
                                  tissue = NULL,
                                  outDir = "out",
                                  variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
@@ -31,7 +29,7 @@ predict_target_genes <- function(varfile,
     NULL
 
   # define the output
-  dir.create(outDir, recursive = T)
+  dir.create(outDir, recursive = T, showWarnings = F)
   out <- list()
   out$Base <- paste0(outDir,"/") %>% { if(!is.null(trait)) paste0(., trait, "_") else . }
   out$Annotations <- paste0(out$Base, "target_gene_annotations.tsv")
@@ -40,13 +38,13 @@ predict_target_genes <- function(varfile,
   out$PR <- paste0(out$Base, "PrecisionRecall.pdf")
 
   # import the variants
-  cat("Importing variants...")
+  cat("Importing variants...\n")
   variants <- target.gene.prediction.package::import_BED(
     variantsFile,
     metadata_cols = c("variant", "cs"))
 
   # import drivers and check that all symbols are in the GENCODE data
-  cat("Importing driver genes...")
+  cat("Importing driver genes...\n")
   drivers <- target.gene.prediction.package::read_tibble(driversFile)$V1
   target.gene.prediction.package::check_driver_symbols(drivers, driversFile)
 
@@ -55,9 +53,7 @@ predict_target_genes <- function(varfile,
   contact_metadata <- readRDS(paste0(referenceDir, "contact/contact_metadata.rda"))
 
   # import the DHSs data
-  DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) %>%
-    target.gene.prediction.package::recursively_bind_rows(nest_names = c("Method", "Mark", "CellType")) %>%
-    dplyr::mutate(DHS = paste0(chrom, ":", start, "-", end))
+  DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
   DHSs_metadata <- readRDS(paste0(referenceDir, "DHSs/DHSs_metadata.rda"))
 
   # configure base weightings (not factoring in celltype enrichment)
@@ -80,35 +76,36 @@ predict_target_genes <- function(varfile,
   # #### 1) CELL TYPE ENRICHMENT ####
   cat("1) Cell type enrichment...\n")
   enriched <- target.gene.prediction.package::get_enriched(DHSs, DHSs_metadata, variants)
-  cat("Enriched cell types: ", enriched$celltypes$code, "\n")
-  cat("Enriched tissues:", unique(enriched$celltypes$tissue), "\n")
+  cat("Enriched cell type(s): ", enriched$celltypes$code, "\n")
+  cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
   # Subset DHS annotations
-  enriched_DHSs <- DHSs %>%
-    dplyr::filter(CellType %in% enriched$tissues$code)
-  enriched_contact_elements <- contact_metadata %>%
+  enriched$DHSs <- DHSs %>%
+    dplyr::select(chrom:DHS, dplyr::contains(enriched$tissues$code))
+  enriched$contact_elements <- contact_metadata %>%
     dplyr::filter(Tissue %in% enriched$tissues$tissue) %>%
     dplyr::pull(list_element)
 
   # ======================================================================================================
   # #### 2) ENHANCER VARIANTS ####
   # get variants at DHSs ('enhancer variants')
-  cat("1) Finding enhancer variants...\n")
+  cat("2) Finding enhancer variants...\n")
   open_variants <- DHSs %>%
-    dplyr::select(chrom:end) %>%
+    dplyr::select(chrom:DHS) %>%
     dplyr::distinct() %>%
     target.gene.prediction.package::bed_intersect_left(
       variants, .,
-      suffix = c("", ".DHS"),
-      keepBcoords = T,
-      keepBmetadata = F) %>%
-    # unique DHS IDs to annotate
-    dplyr::mutate(DHS = paste0(chrom, ":", start.DHS, "-", end.DHS))
+      keepBcoords = F,
+      keepBmetadata = T)
 
   # ======================================================================================================
+  cat("3) Scoring enhancer-gene pairs...\n")
   # #### 3a) ENHANCER-LEVEL INPUTS ####
   # (Intersection with list of annotations, enhancers, GWAS statistics(?), etc...)
-  v <- get_v_level_annotations()
+  v <- get_v_level_annotations(open.variants = open_variants,
+                               enriched.DHSs = enriched$DHSs,
+                               variant.to.gene.max.distance = variant_to_gene_max_distance,
+                               weight.v = weight$v)
   # bind and widen all variant-level annotations
   weighted_v_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = "variant",
@@ -118,7 +115,7 @@ predict_target_genes <- function(varfile,
 
   # ======================================================================================================
   # #### 3b) GENE-LEVEL INPUTS ####
-  g <- get_g_level_annotations()
+  g <- get_g_level_annotations(enriched.DHSs = enriched$DHSs)
   # bind and widen all gene-level annotations
   weighted_g_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = "enst",
@@ -128,7 +125,7 @@ predict_target_genes <- function(varfile,
 
   # ======================================================================================================
   # #### 3c) DHS-LEVEL INPUTS ####
-  d <- get_d_level_annotations()
+  d <- get_d_level_annotations(open.variants = open_variants)
   # bind and widen all DHS-level annotations
   weighted_d_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = "DHS",
@@ -138,7 +135,7 @@ predict_target_genes <- function(varfile,
 
   # ======================================================================================================
   # #### 3d) CS-LEVEL INPUTS ####
-  c <- get_c_level_annotations()
+  c <- get_c_level_annotations(open.variants = open_variants)
   # bind and widen all CS-level annotations
   weighted_c_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = "cs",
@@ -150,7 +147,11 @@ predict_target_genes <- function(varfile,
   # #### 3e) GENE-X-VARIANT-LEVEL INPUTS ####
   # (HiC interaction, distance, etc...)
   # The package will consider all genes as potential targets of a variant in CS's whose ranges are within the max distance
-  gxv <- get_gxv_level_annotations()
+  gxv <- get_gxv_level_annotations(open.variants = open_variants,
+                                   variant.to.gene.max.distance = variant_to_gene_max_distance,
+                                   weight.gxv = weight$gxv,
+                                   enriched.contact_elements = enriched$contact_elements,
+                                   .contact = contact)
   # bind and widen all gene-x-variant-level annotations
   weighted_gxv_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = c("variant", "cs", "enst"),
@@ -160,7 +161,8 @@ predict_target_genes <- function(varfile,
 
   # ======================================================================================================
   # #### 3f) GENE-X-CS-LEVEL INPUTS ####
-  gxc <- get_gxc_level_annotations()
+  gxc <- get_gxc_level_annotations(gxv.contact = gxv$contact,
+                                   weight.gxc = weight$gxc)
   # bind and widen all gene-x-cs-level annotations
   weighted_gxc_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = c("cs", "enst"),
@@ -170,7 +172,10 @@ predict_target_genes <- function(varfile,
 
   # ======================================================================================================
   # #### 3g) GENE-X-DHS-LEVEL INPUTS ####
-  gxd <- get_gxd_level_annotations()
+  gxd <- get_gxd_level_annotations(gxv.contact = gxv$contact,
+                                   ensts.near.vars = gxv$distance_score$enst,
+                                   weight.gxd = weight$gxd,
+                                   .DHSs = DHSs)
   # bind and widen all gene-x-DHS-level annotations
   weighted_gxd_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
     id_cols = c("DHS", "enst"),
@@ -185,7 +190,7 @@ predict_target_genes <- function(varfile,
   # -> only variant-gene combinations with at least one pair annotation (e.g. HiChIP interaction, nearest or within 2Mb) are included
   # -> pair ID columns: | variant | enst |
   # -> annotation columns: | g_* | v_* | c_* | d_* | gxv_* | gxc_* | gxd_* |
-  cat("3) Generating master table of gene x", trait, "variant pairs, with all annotation levels (genes, variants, gene-variant pairs, gene-credible set pairs)...\n")
+  cat("3) Generating master table of gene x", trait, "variant pairs, with all annotation levels...\n")
   master <- open_variants %>%
     dplyr::select(variant, cs, DHS) %>%
     # Get annotations for all genes with TSSs within variant_to_gene_max_distance of every variant
@@ -256,8 +261,8 @@ predict_target_genes <- function(varfile,
   # add annotation level info
   performance_all$PR <- performance_all$PR %>% dplyr::mutate(level = sub("_.*", "", prediction_type))
 
-  pdf(outPR, height = 10, onefile = T)
-    performance$PR %>% target.gene.prediction.package::plot_PR()
+  pdf(out$PR, height = 10, onefile = T)
+    performance$PR %>% target.gene.prediction.package::plot_PR(colour = prediction_type)
     performance$PR %>%
       dplyr::select(prediction_type, AUC) %>%
       dplyr::distinct() %>%
@@ -287,10 +292,6 @@ predict_target_genes <- function(varfile,
   # ======================================================================================================
   # #### 6) XGBoost model training? ####
   # XGBoost input
-  master %>%
-    dplyr::select(label = driver,
-                  annotation_cols)
-
 
 }
 
