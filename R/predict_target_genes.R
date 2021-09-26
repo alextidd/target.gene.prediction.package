@@ -150,7 +150,7 @@ predict_target_genes <- function(trait = NULL,
   gxv <- get_gxv_level_annotations(open.variants = open_variants,
                                    variant.to.gene.max.distance = variant_to_gene_max_distance,
                                    weight.gxv = weight$gxv,
-                                   enriched.contact_elements = enriched$contact_elements,
+                                   .enriched = enriched,
                                    .contact = contact)
   # bind and widen all gene-x-variant-level annotations
   weighted_gxv_annotations <- target.gene.prediction.package::bind_and_weight_and_widen_annotations(
@@ -212,7 +212,7 @@ predict_target_genes <- function(trait = NULL,
 
   # Generate overall scores (rowwise sum function for now ; TODO: change!)
   predictions <- master %>%
-    dplyr::mutate(score = rowSums(dplyr::across(annotation_cols))) %>%
+    dplyr::mutate(score = rowSums(dplyr::across(dplyr::all_of(annotation_cols)))) %>%
     dplyr::select(cs, symbol, score, driver) %>%
     dplyr::distinct()
 

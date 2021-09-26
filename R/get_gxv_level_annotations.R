@@ -1,7 +1,7 @@
 get_gxv_level_annotations <- function(open.variants = open_variants,
                                       variant.to.gene.max.distance = variant_to_gene_max_distance,
                                       weight.gxv = weight$gxv,
-                                      enriched.contact_elements = enriched$contact_elements,
+                                      .enriched = enriched,
                                       .contact = contact) {
   cat("Annotating gene x variant pairs...\n")
 
@@ -63,7 +63,7 @@ get_gxv_level_annotations <- function(open.variants = open_variants,
                          annotation.value = score)) %>%
     dplyr::bind_rows(.id = "annotation.name") %>%
     dplyr::mutate(
-      annotation.weight = dplyr::case_when(annotation.name %in% enriched.contact_elements ~ 2 * weight.gxv$contact,
+      annotation.weight = dplyr::case_when(annotation.name %in% .enriched$contact_elements ~ 2 * weight.gxv$contact,
                                            TRUE ~ weight.gxv$contact)) %>%
     # Make sure all interactions are within 2Mb - hard filter, ignore everything further
     dplyr::inner_join(distance %>% dplyr::select(variant, cs, enst))
@@ -76,7 +76,7 @@ get_gxv_level_annotations <- function(open.variants = open_variants,
     target.gene.prediction.package::bed_intersect_left(
       target.gene.prediction.package::promoters,
       keepBcoords = F, keepBmetadata = T) %>%
-    dplyr::left_join(enriched.DHSs %>% dplyr::select(-c(chrom:end))) %>%
+    dplyr::left_join(.enriched$DHSs %>% dplyr::select(-c(chrom:end))) %>%
     tidyr::gather(key = "annotation",
                   value = "annotation.value",
                   dplyr::starts_with(c("specificity", "signal"))) %>%
@@ -88,7 +88,8 @@ get_gxv_level_annotations <- function(open.variants = open_variants,
                      enst,
                      annotation.name = paste0(CellType, "_promoter_signal_plus_specificity"),
                      annotation.value,
-                     annotation.weight = 1)
+                     annotation.weight = 1) %>%
+    dplyr::distinct()
 
   # return
   return(gxv)
