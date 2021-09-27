@@ -64,7 +64,10 @@ predict_target_genes <- function(trait = NULL,
       distance_score = 1,
       distance_rank = 1,
       closest = 1,
-      contact = 2),
+      contact = 2,
+      promoter = 5,
+      exon = 5,
+      intron = 5),
     gxc = list(
       multicontact = 3),
     gxd = list(
@@ -215,44 +218,18 @@ predict_target_genes <- function(trait = NULL,
     dplyr::mutate(score = rowSums(dplyr::across(dplyr::all_of(annotation_cols)))) %>%
     dplyr::select(cs, symbol, score, driver) %>%
     dplyr::distinct()
+  predictions_out <- predictions %>%
+    dplyr::select(-driver) %>%
+    dplyr::group_by(cs, symbol) %>%
+    dplyr::filter(score == max(score))
 
   # save output tables
   cat("Saving prediction files...\n")
   master %>% write_tibble(out$Annotations)
-  predictions %>% write_tibble(out$Predictions)
+  predictions_out %>% write_tibble(out$Predictions)
 
   # ======================================================================================================
   # #### 5) PERFORMANCE ####
-
-  # # Performance summaries: confusion matrix, p value, precision, recall, sensitivity, specificity, F score
-  # # -> prediction                                      (positive = score > mean(score))
-  # # -> max                                             (positive = group_by(cs) %>% score == max(score))
-  # # -> all individual annotations converted to binary  (positive = score > 0)
-  # performance <- dplyr::tibble()
-  # for(col in c("max", "prediction")){ cat(col, "\n")
-  #   curr.performance <- testable_predictions %>%
-  #     target.gene.prediction.package::get_performance(., get(col)) %>%
-  #     dplyr::mutate(Method = col)
-  #   performance <- dplyr::bind_rows(performance, curr.performance)
-  # }
-  # for(col in annotation_cols){ cat(col, "\n")
-  #   curr.performance <- testable_predictions_full %>%
-  #     dplyr::mutate(score = dplyr::case_when(get(col) == 0 ~ FALSE, TRUE ~ TRUE)) %>%
-  #     target.gene.prediction.package::get_performance(., score) %>%
-  #     dplyr::mutate(Method = col)
-  #   performance <- dplyr::bind_rows(performance, curr.performance)
-  # }
-  # performance <- performance %>% dplyr::select(Method, dplyr::everything())
-  # # write performance table
-  # performance %>% write_tibble(out$Performance)
-
-  # # score distribution histograms
-  # pdf("out/scores_distribution_per_annotation.pdf", width = 20, onefile = T)
-  # for(annotation in annotation_cols){
-  #   cat(annotation, "\n")
-  #   print(target.gene.prediction.package::plot_scores_distribution(testable_predictions_full, annotation))
-  # }
-  # dev.off()
 
   # Generate PR curves (model performance metric)
   performance <- target.gene.prediction.package::get_PR(predictions, score)
@@ -292,6 +269,8 @@ predict_target_genes <- function(trait = NULL,
   # ======================================================================================================
   # #### 6) XGBoost model training? ####
   # XGBoost input
+  train <- master %>%
+    dplyr::rename(label = driver)
 
 }
 

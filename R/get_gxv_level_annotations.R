@@ -88,8 +88,32 @@ get_gxv_level_annotations <- function(open.variants = open_variants,
                      enst,
                      annotation.name = paste0(CellType, "_promoter_signal_plus_specificity"),
                      annotation.value,
-                     annotation.weight = 1) %>%
+                     annotation.weight = weight.gxv$promoter) %>%
     dplyr::distinct()
+
+  # intronic variants
+  gxv$intron <- open.variants %>%
+    # Get variants within introns
+    target.gene.prediction.package::bed_intersect_left(
+      target.gene.prediction.package::introns,
+      keepBcoords = F, keepBmetadata = T) %>%
+    dplyr::transmute(variant,
+                     enst,
+                     annotation.name = "intronic",
+                     annotation.value = 1,
+                     annotation.weight = weight.gxv$intron)
+
+  # exonic (coding) variants
+  gxv$exon <- open.variants %>%
+    # Get variants within introns
+    target.gene.prediction.package::bed_intersect_left(
+      target.gene.prediction.package::exons,
+      keepBcoords = F, keepBmetadata = T) %>%
+    dplyr::transmute(variant,
+                     enst,
+                     annotation.name = "exonic",
+                     annotation.value = 1,
+                     annotation.weight = weight.gxv$exon)
 
   # return
   return(gxv)
