@@ -1,6 +1,5 @@
 get_gxv_level_annotations <- function(open.variants = open_variants,
                                       variant.to.gene.max.distance = variant_to_gene_max_distance,
-                                      weight.gxv = weight$gxv,
                                       .enriched = enriched,
                                       .contact = contact) {
   cat("Annotating gene x variant pairs...\n")
@@ -29,92 +28,100 @@ get_gxv_level_annotations <- function(open.variants = open_variants,
                   pair.inverse_distance_rank)
 
   # variant-TSS inverse distance score method
-  gxv$distance_score <- distance %>%
-    dplyr::transmute(variant, cs, enst, DHS,
-                     annotation.name = "inverse_distance_within_max_distance",
-                     annotation.value = pair.inverse_distance,
-                     annotation.weight = weight.gxv$distance_rank)
+  gxv$inv_distance <- distance %>%
+    dplyr::transmute(variant, enst,
+                     value = pair.inverse_distance)
 
   # variant-TSS distance rank method
-  gxv$distance_rank <- distance %>%
-    dplyr::transmute(variant, cs, enst, DHS,
-                     annotation.name = "inverse_distance_rank_within_max_distance",
-                     annotation.value = pair.inverse_distance_rank,
-                     annotation.weight = weight.gxv$distance_rank)
+  gxv$inv_distance_rank <- distance %>%
+    dplyr::transmute(variant, enst,
+                     value = pair.inverse_distance_rank)
 
   # closest variant-TSS method
   gxv$closest <- distance %>%
     dplyr::filter(pair.inverse_distance_rank == 1) %>%
-    dplyr::transmute(variant, cs, enst, DHS,
-                     annotation.name = "closest",
-                     annotation.value = 1,
-                     annotation.weight = weight.gxv$closest)
+    dplyr::transmute(variant, enst,
+                     value = 1)
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  gxv$contact <- .contact %>%
+  gxv <- .contact %>%
+    # Intersect with the contact data
     purrr::map(~ intersect_BEDPE(
       # ! For mutually exclusive intersection with HiC ranges, make variant intervals 1bp long, equal to the end position
       SNPend = open.variants %>% dplyr::mutate(start = end),
       TSSend = target.gene.prediction.package::TSSs,
       bedpe = .) %>%
-        dplyr::transmute(variant, cs, DHS, enst,
+        tidyr::separate(InteractionID, into = c("celltype", "assay"), sep = "\\_", remove = F, extra = "drop") %>%
+        dplyr::transmute(variant, enst,
                          InteractionID,
-                         annotation.value = score)) %>%
-    dplyr::bind_rows(.id = "annotation.name") %>%
-    dplyr::mutate(
-      annotation.weight = dplyr::case_when(annotation.name %in% .enriched$contact_elements ~ 2 * weight.gxv$contact,
-                                           TRUE ~ weight.gxv$contact)) %>%
+                         value = score,
+                         celltype,
+                         assay = paste0("contact_", assay))
+      ) %>%
+    purrr::reduce(dplyr::bind_rows) %>%
     # Make sure all interactions are within 2Mb - hard filter, ignore everything further
-    dplyr::inner_join(distance %>% dplyr::select(variant, cs, enst))
+    dplyr::inner_join(distance %>% dplyr::select(variant, enst)) %>%
+    # Split into different contact assays
+    split(f = .$assay) %>%
+    # Widen
+    purrr::map(~ tidyr::pivot_wider(.,
+      id_cols = c(variant, enst),
+      names_from = celltype,
+      values_from = value)) %>%
+    # Add to gxv list
+    c(., gxv)
+
   ## ~10% of variant-TSS interactions indicated by the contact data
   ## are further than 2Mb apart and are thus eliminated
 
   # get variants at promoters - score by sum of signal and specificity per enriched celltype at the DHS (~promoter activity)
   gxv$promoter <- open.variants %>%
+    dplyr::select(chrom:variant) %>%
     # Get variants within promoter regions
     target.gene.prediction.package::bed_intersect_left(
       target.gene.prediction.package::promoters,
       keepBcoords = F, keepBmetadata = T) %>%
-    dplyr::left_join(.enriched$DHSs %>% dplyr::select(-c(chrom:end))) %>%
-    tidyr::gather(key = "annotation",
-                  value = "annotation.value",
-                  dplyr::starts_with(c("specificity", "signal"))) %>%
-    dplyr::mutate(CellType = annotation %>% gsub(".*_", "", .)) %>%
-    dplyr::group_by(variant, enst, CellType) %>%
-    dplyr::mutate(annotation.value = sum(annotation.value)) %>%
-    dplyr::ungroup() %>%
-    dplyr::transmute(variant,
-                     enst,
-                     annotation.name = paste0(CellType, "_promoter_signal_plus_specificity"),
-                     annotation.value,
-                     annotation.weight = weight.gxv$promoter) %>%
-    dplyr::distinct()
+    # Get DHS bins at those promoter variants
+    target.gene.prediction.package::intersect_DHSs(list(), ., .enriched$DHSs) %>%
+    dplyr::bind_rows() %>%
+    # Sum specificity + signal bin per promoter variant per enriched cell type
+    dplyr::group_by(dplyr::across(setdiff(names(.), .enriched$tissues$code))) %>%
+    dplyr::summarise(dplyr::across(everything(), sum)) %>%
+    dplyr::ungroup()
 
   # intronic variants
   gxv$intron <- open.variants %>%
     # Get variants within introns
     target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::introns,
+      target.gene.prediction.package::introns, .,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
                      enst,
-                     annotation.name = "intronic",
-                     annotation.value = 1,
-                     annotation.weight = weight.gxv$intron)
+                     value = 1)
 
   # exonic (coding) variants
   gxv$exon <- open.variants %>%
     # Get variants within introns
     target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::exons,
+      target.gene.prediction.package::exons, .,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
                      enst,
-                     annotation.name = "exonic",
-                     annotation.value = 1,
-                     annotation.weight = weight.gxv$exon)
+                     value = 1)
+
+  # TADs
+  gxv$TADs <- dplyr::full_join(
+    target.gene.prediction.package::bed_intersect_left(
+      open.variants, TADs, keepBcoords = F) %>%
+      dplyr::select(variant, TAD),
+    target.gene.prediction.package::bed_intersect_left(
+      target.gene.prediction.package::TSSs, TADs, keepBcoords = F) %>%
+      dplyr::select(enst, TAD)
+  ) %>%
+    dplyr::transmute(variant, enst, value = 1)
 
   # return
+  names(gxv) <- paste0("gxv_", names(gxv))
   return(gxv)
 }

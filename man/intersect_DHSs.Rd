@@ -4,7 +4,7 @@
 \alias{intersect_DHSs}
 \title{Intersect with the DHS annotations}
 \usage{
-intersect_DHSs(query, DHSs, ...)
+intersect_DHSs(list, query, DHSs, ...)
 }
 \arguments{
 \item{query}{A query bed}

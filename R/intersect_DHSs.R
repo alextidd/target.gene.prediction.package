@@ -8,20 +8,35 @@
 #'
 #' @return A tibble of intersected columns, with .query and .annotation suffixes
 #' @export
-intersect_DHSs <- function(query,
+intersect_DHSs <- function(list,
+                           query,
                            DHSs,
                            ...){
 
-  cat("Intersecting query BED with DHSs\n")
   # intersect with query bed
+  list[["DHSs_specificity"]] <- int_func(query, DHSs[["specificity"]])
+  list[["DHSs_signal"]] <- int_func(query, DHSs[["signal"]])
+  return(list)
+
+}
+
+# internal generic intersection function
+int_func <- function(query, DHSs){
   target.gene.prediction.package::bed_intersect_left(
     query,
-    DHSs,
+    DHSs %>% dplyr::select(-DHS),
     keepBcoords = F) %>%
-    tidyr::gather(key = "annotation.name",
-                  value = "annotation.value",
-                  -c(names(query), "DHS")) %>%
-    dplyr::transmute(...,
-                     annotation.name = paste0("DHSs_", annotation.name),
-                     annotation.value)
+    dplyr::select(-c(chrom, start, end))
 }
+
+
+# target.gene.prediction.package::bed_intersect_left(
+#   query,
+#   DHSs,
+#   keepBcoords = F) %>%
+#   tidyr::gather(key = "annotation.name",
+#                 value = "annotation.value",
+#                 -c(names(query), "DHS")) %>%
+#   dplyr::transmute(...,
+#                    annotation.name = paste0("DHSs_", annotation.name),
+#                    annotation.value)

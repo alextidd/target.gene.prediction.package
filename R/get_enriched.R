@@ -2,7 +2,6 @@ get_enriched <- function(DHSs, DHSs_metadata, variants){
   enriched <- list()
   enriched[["celltypes"]] <- DHSs %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
-    dplyr::select(chrom:DHS, dplyr::starts_with("specificity_H3K27ac")) %>%
     tidyr::gather(key = "annotation",
                   value = "decile",
                   -c(chrom:DHS)) %>%

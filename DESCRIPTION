@@ -18,9 +18,10 @@ Imports:
     dplyr,
     tidyr,
     readr,
+    tibble,
     purrr,
     utils,
-    tidymodels,
+    yardstick,
     xgboost
 Depends:
     R (>= 2.10)

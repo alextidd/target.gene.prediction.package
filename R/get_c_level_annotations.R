@@ -3,13 +3,13 @@ get_c_level_annotations <- function(open.variants = open_variants) {
 
   c <- list()
 
-  c$annotations <- open.variants %>%
+  c$inv_n_variants <- open.variants %>%
     dplyr::group_by(cs) %>%
-    dplyr::transmute(annotation.name = "inverse_n_variants_within_CS",
-                     annotation.value = 1/dplyr::n_distinct(variant),
-                     annotation.weight = 1) %>%
+    dplyr::transmute(value = 1/dplyr::n_distinct(variant)) %>%
     dplyr::distinct()
 
+
   # return
+  names(c) <- paste0("c_", names(c))
   return(c)
 }

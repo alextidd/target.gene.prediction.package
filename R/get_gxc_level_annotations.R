@@ -1,41 +1,26 @@
-get_gxc_level_annotations <- function(gxv.contact = gxv$contact,
-                                      weight.gxc = weight$gxc) {
+get_gxc_level_annotations <- function(.gxv = gxv,
+                                      open.variants = open_variants) {
   cat("Annotating gene x credible set pairs...\n")
 
-  gxc <- list()
+  # multicontact statistics within each gene-x-cs-x-experiment combination
+  multicontact <- .gxv[greplany("contact", names(.gxv))] %>%
+    purrr::map(~ dplyr::left_join(., open.variants %>% dplyr::select(variant, cs)) %>%
+                 dplyr::group_by(cs, enst))
 
-  multicontact <- gxv.contact %>%
-    # multicontact statistics within each gene-x-cs-x-experiment combination
-    dplyr::group_by(cs, enst, annotation.name) %>%
-    dplyr::mutate(
-      # number of gxc loops within each experiment
-      inv_n_contacts = 1/dplyr::n_distinct(InteractionID),
-      # sum of the scores of gxc loops within each experiment
-      inv_sum_contacts = 1/sum(annotation.value),
-      # collapse Interaction IDs
-      InteractionID = paste0(unique(InteractionID), collapse = ",")
-    )
+  # count number of loops between gene and CS
+  n_multi <- multicontact %>%
+    purrr::map(~ dplyr::summarise(., dplyr::across(where(is.numeric), ~ sum(!is.na(.x)))))
+  names(n_multi) <- paste0("n_multi", names(n_multi))
 
-  gxc$n_multicontact <- multicontact %>%
-    dplyr::ungroup()  %>%
-    dplyr::transmute(cs,
-                     enst,
-                     InteractionID,
-                     annotation.name = paste0("n_multicontact_", annotation.name),
-                     annotation.value = inv_n_contacts,
-                     annotation.weight = weight.gxc$multicontact) %>%
-    dplyr::distinct()
+  # sum of loop values between gene and CS
+  sum_multi <- multicontact %>%
+    purrr::map(~ dplyr::summarise(., dplyr::across(where(is.numeric), ~ sum(.x, na.rm = T))))
+  names(sum_multi) <- paste0("sum_multi", names(sum_multi))
 
-  gxc$sum_multicontact <- multicontact %>%
-    dplyr::ungroup()  %>%
-    dplyr::transmute(cs,
-                     enst,
-                     InteractionID,
-                     annotation.name = paste0("sum_multicontact_", annotation.name),
-                     annotation.value = inv_sum_contacts,
-                     annotation.weight = weight.gxc$multicontact) %>%
-    dplyr::distinct()
+  gxc <- c(n_multi,
+           sum_multi)
 
   # return
+  names(gxc) <- paste0("gxc_", names(gxc))
   return(gxc)
 }

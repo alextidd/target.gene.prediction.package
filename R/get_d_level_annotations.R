@@ -3,14 +3,14 @@ get_d_level_annotations <- function(open.variants = open_variants){
 
   d <- list()
 
-  d$annotations <- open.variants %>%
+  d$inv_n_variants <- open.variants %>%
     dplyr::group_by(DHS) %>%
     dplyr::transmute(DHS,
-                     annotation.name = "inverse_n_variants_within_DHS",
-                     annotation.value = 1/dplyr::n_distinct(variant),
-                     annotation.weight = 1) %>%
+                     value = 1/dplyr::n_distinct(variant)) %>%
     dplyr::distinct()
 
+
   # return
+  names(d) <- paste0("d_", names(d))
   return(d)
 }
