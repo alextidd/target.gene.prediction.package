@@ -146,7 +146,8 @@ predict_target_genes <- function(trait = NULL,
   gxv <- get_gxv_level_annotations(open.variants = open_variants,
                                    variant.to.gene.max.distance = variant_to_gene_max_distance,
                                    .enriched = enriched,
-                                   .contact = contact)
+                                   .contact = contact,
+                                   .TADs = TADs)
 
   # ======================================================================================================
   # #### 3f) GENE-X-CS-LEVEL INPUTS ####

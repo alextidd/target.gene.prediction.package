@@ -1,7 +1,8 @@
 get_gxv_level_annotations <- function(open.variants = open_variants,
                                       variant.to.gene.max.distance = variant_to_gene_max_distance,
                                       .enriched = enriched,
-                                      .contact = contact) {
+                                      .contact = contact,
+                                      .TADs = TADs) {
   cat("Annotating gene x variant pairs...\n")
 
   gxv <- list()
@@ -113,10 +114,10 @@ get_gxv_level_annotations <- function(open.variants = open_variants,
   # TADs
   gxv$TADs <- dplyr::full_join(
     target.gene.prediction.package::bed_intersect_left(
-      open.variants, TADs, keepBcoords = F) %>%
+      open.variants, .TADs, keepBcoords = F) %>%
       dplyr::select(variant, TAD),
     target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::TSSs, TADs, keepBcoords = F) %>%
+      target.gene.prediction.package::TSSs, .TADs, keepBcoords = F) %>%
       dplyr::select(enst, TAD)
   ) %>%
     dplyr::transmute(variant, enst, value = 1)
