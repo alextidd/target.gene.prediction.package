@@ -1,0 +1,16 @@
+Loading required package: usethis
+ℹ Loading target.gene.prediction.package
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+Error in eRDS(contact_binned, file = paste0(QCDir, "/binned_contact_list.rda")) : 
+  could not find function "eRDS"
+Execution halted

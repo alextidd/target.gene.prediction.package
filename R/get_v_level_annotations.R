@@ -1,19 +1,19 @@
-get_v_level_annotations <- function(open.variants = open_variants,
-                                    enriched.DHSs = enriched$DHSs,
-                                    variant.to.gene.max.distance = variant_to_gene_max_distance){
+get_v_level_annotations <- function(open_variants,
+                                    enriched,
+                                    variant_to_gene_max_distance){
   cat("Annotating variants...\n")
 
   v <- list()
 
   # intersect with DHS binnings
   v <- v %>%
-    intersect_DHSs(open.variants %>% dplyr::select(chrom:variant),
-                   enriched.DHSs)
+    intersect_DHSs(open_variants %>% dplyr::select(chrom:variant),
+                   enriched$DHSs)
 
   # calculate n genes near each variant
-  v$inv_n_genes <- open.variants %>%
+  v$inv_n_genes <- open_variants %>%
     # Get genes within xMb of each variant
-    valr::bed_slop(both = variant.to.gene.max.distance,
+    valr::bed_slop(both = variant_to_gene_max_distance,
                    genome = target.gene.prediction.package::ChrSizes,
                    trim = T) %>%
     valr::bed_intersect(., target.gene.prediction.package::TSSs, suffix = c("", ".TSS")) %>%

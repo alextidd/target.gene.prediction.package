@@ -2,13 +2,13 @@
 #'
 #' The master, user-facing function of this package.
 #'
-#' @param trait The name of the trait of interest
-#' @param tissue The tissue(s) of action for the trait
-#' @param outDir The output directory in which to save the predictions. Default is current directory
-#' @param referenceDir The directory containing the external, accompanying reference data
+#' @param trait Optional. The name of the trait of interest.
+#' @param tissue Optional. The tissue(s) of action for the trait.
+#' @param outDir The output directory in which to save the predictions. Default is "./out".
+#' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variantsFile A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
-#' @param driversFile The file containing a list of driver gene symbols
-#' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb.
+#' @param driversFile The file containing a list of trait driver gene symbols.
+#' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
 #'
 #' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
 #' @export
@@ -23,10 +23,10 @@ predict_target_genes <- function(trait = NULL,
   # for testing:
   # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6
 
-  # silence "no visible binding" NOTE for data variables
-  . <- variant <- enst <- start.variant <- start.TSS <- variant.variant <- enst.TSS <- score <- annotation <- estimate <-
-    p.value <- enst.query <- annotation.annotation <- variant.query <- n <- end <- pair.score <-
-    NULL
+  # silence "no visible binding" NOTE for data variables in check()
+  . <- NULL
+
+  # SETUP ======================================================================================================
 
   # define the output
   dir.create(outDir, recursive = T, showWarnings = F)
@@ -37,13 +37,13 @@ predict_target_genes <- function(trait = NULL,
   out$Performance <- paste0(out$Base, "performance.tsv")
   out$PR <- paste0(out$Base, "PrecisionRecall.pdf")
 
-  # import the variants
+  # import the user-provided variants
   cat("Importing variants...\n")
   variants <- target.gene.prediction.package::import_BED(
     variantsFile,
     metadata_cols = c("variant", "cs"))
 
-  # import drivers and check that all symbols are in the GENCODE data
+  # import user-provided drivers and check that all symbols are in the GENCODE data
   cat("Importing driver genes...\n")
   drivers <- target.gene.prediction.package::read_tibble(driversFile)$V1
   target.gene.prediction.package::check_driver_symbols(drivers, driversFile)
@@ -62,41 +62,20 @@ predict_target_genes <- function(trait = NULL,
   # import the TADs data
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
 
-  # configure base weightings (not factoring in celltype enrichment)
-  weight <- list(
-    v = list(
-      n_genes = 1),
-    gxv = list(
-      distance_score = 1,
-      distance_rank = 1,
-      closest = 1,
-      contact = 2,
-      promoter = 5,
-      exon = 5,
-      intron = 5),
-    gxc = list(
-      multicontact = 3),
-    gxd = list(
-      multicontact = 3,
-      closest = 1)
-  )
-
-  # ======================================================================================================
-  # #### 1) CELL TYPE ENRICHMENT ####
+  # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
   enriched <- target.gene.prediction.package::get_enriched(DHSs$specificity, DHSs_metadata, variants)
   cat("Enriched cell type(s): ", enriched$celltypes$code, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
-  # Subset DHS annotations
+  # Subset annotations
   enriched$DHSs <- DHSs %>%
     lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$code))
   enriched$contact_elements <- contact_metadata %>%
     dplyr::filter(Tissue %in% enriched$tissues$tissue) %>%
     dplyr::pull(list_element)
 
-  # ======================================================================================================
-  # #### 2) ENHANCER VARIANTS ####
+  # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
   cat("2) Finding enhancer variants...\n")
   open_variants <- DHSs_master %>%
@@ -105,8 +84,8 @@ predict_target_genes <- function(trait = NULL,
       keepBcoords = F,
       keepBmetadata = T)
 
-  # The SNP-gene universe (masterlist of all possible gene x open variant pairs <2Mb apart)
-  gxv_master <- open_variants %>%
+  # The transcript-x-variant universe (masterlist of all possible transcript x open variant pairs <2Mb apart)
+  txv_master <- open_variants %>%
     valr::bed_slop(both = variant_to_gene_max_distance,
                    genome = target.gene.prediction.package::ChrSizes,
                    trim = T) %>%
@@ -115,112 +94,96 @@ predict_target_genes <- function(trait = NULL,
     dplyr::distinct(variant = variant.variant,
                     cs = cs.variant,
                     DHS = DHS.variant,
-                    enst = enst.TSS
+                    enst = enst.TSS,
+                    symbol = symbol.TSS
                     ) %>%
     dplyr::mutate(pair = paste0(variant, "|", enst))
 
-  # ======================================================================================================
+  # 3) SCORING ======================================================================================================
   cat("3) Scoring enhancer-gene pairs...\n")
-  # #### 3a) ENHANCER-LEVEL INPUTS ####
+
+  # 3a) ENHANCER-LEVEL INPUTS ====
   # (Intersection with list of annotations, enhancers, GWAS statistics(?), etc...)
-  v <- get_v_level_annotations(open.variants = open_variants,
-                               enriched.DHSs = enriched$DHSs,
-                               variant.to.gene.max.distance = variant_to_gene_max_distance)
+  v <- get_v_level_annotations(open_variants,
+                               enriched,
+                               variant_to_gene_max_distance)
 
-  # ======================================================================================================
-  # #### 3b) GENE-LEVEL INPUTS ####
-  g <- get_g_level_annotations(enriched.DHSs = enriched$DHSs)
+  # 3b) TRANSCRIPT-LEVEL INPUTS ====
+  t <- get_t_level_annotations(enriched)
 
-  # ======================================================================================================
-  # #### 3c) DHS-LEVEL INPUTS ####
-  d <- get_d_level_annotations(open.variants = open_variants)
+  # 3c) DHS-LEVEL INPUTS ====
+  d <- get_d_level_annotations(open_variants)
 
-  # ======================================================================================================
-  # #### 3d) CS-LEVEL INPUTS ####
-  c <- get_c_level_annotations(open.variants = open_variants)
+  # 3d) CS-LEVEL INPUTS ====
+  c <- get_c_level_annotations(open_variants)
 
-  # ======================================================================================================
-  # #### 3e) GENE-X-VARIANT-LEVEL INPUTS ####
+  # 3e) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
   # (3C interaction, distance, etc...)
-  # The package will consider all genes as potential targets of a variant in CS's whose ranges are within the max distance
-  gxv <- get_gxv_level_annotations(open.variants = open_variants,
-                                   variant.to.gene.max.distance = variant_to_gene_max_distance,
-                                   .enriched = enriched,
-                                   .contact = contact,
-                                   .TADs = TADs)
+  # The package will consider all transcripts as potential targets of a variant in CS's whose ranges are within the max distance
+  txv <- get_txv_level_annotations(open_variants,
+                                   variant_to_gene_max_distance,
+                                   enriched,
+                                   contact,
+                                   TADs)
 
-  # ======================================================================================================
-  # #### 3f) GENE-X-CS-LEVEL INPUTS ####
-  gxc <- get_gxc_level_annotations(.gxv = gxv,
-                                   open.variants = open_variants)
+  # 3f) GENE-X-VARIANT-LEVEL INPUTS ===
+  # Summarising across transcripts within a gene
+  gxv <- get_gxv_level_annotations(txv)
 
-  # ======================================================================================================
-  # #### 3g) GENE-X-DHS-LEVEL INPUTS ####
-  gxd <- get_gxd_level_annotations(ensts.near.vars = unique(gxv$gxv_inv_distance$enst),
-                                   DHSs.master = DHSs_master)
+  # 3g) TRANSCRIPT-X-CS-LEVEL INPUTS ====
+  txc <- get_txc_level_annotations(txv,
+                                   open_variants)
 
-  # ======================================================================================================
-  # #### 4) ALL INPUTS ####
-  # Master variant-gene pair table
-  # -> wide-format (one row per gene-variant pair, one column per annotation)
-  # -> only variant-gene combinations with at least one pair annotation (e.g. HiChIP interaction, nearest or within 2Mb) are included
-  # -> pair ID columns: | variant | enst |
-  # -> annotation columns: | g_* | v_* | c_* | d_* | gxv_* | gxc_* | gxd_* |
-  cat("3) Generating master table of gene x", trait, "variant pairs, with all annotation levels...\n")
-  master <- c(v, g, d, c, gxv, gxc, gxd) %>%
-    purrr::map(~ matricise_by_pair(., gxv_master))
+  # 3h) TRANSCRIPT-X-DHS-LEVEL INPUTS ====
+  ensts_near_vars <- unique(txv$txv_inv_distance$enst)
+  txd <- get_txd_level_annotations(ensts_near_vars,
+                                   DHSs_master)
+
+  # 4) ALL INPUTS ======================================================================================================
+  # Master variant-transcript matrix list
+  # -> wide-format (one row per transcript|variant pair, one column per celltype)
+  # -> only variant-transcript combinations within 2Mb are included
+  # -> pair ID rownames: variant|enst
+  cat("3) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
+  master <- c(v, t, d, c, txv, gxv, txc, txd) %>%
+    purrr::map(~ matricise_by_pair(., txv_master))
   master %>% write_tibble(out$Annotations)
 
   # MultiAssayExperiment
-  samplelist <- read.delim("/working/lab_georgiat/jonathB/PROJECTS/GitHub_repos/target.gene.prediction.package/JB/coldata.txt", stringsAsFactors = F)
-  col_from_assays <- lapply(master, colnames) %>% unlist() %>% as.data.frame() %>% dplyr::distinct()
-  coldata <- dplyr::left_join(col_from_assays, samplelist, by = c("."="X"))
-  rownames(coldata) <- coldata$.
+  sample_list <- readRDS(paste0(referenceDir, "sample_list.rda"))
+  # colData
+  colData <- master %>%
+    lapply(colnames) %>%
+    unlist %>%
+    as.data.frame %>%
+    dplyr::distinct() %>%
+    dplyr::rename("X" = ".") %>%
+    dplyr::left_join(sample_list) %>%
+    tibble::column_to_rownames("X")
 
-  MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = coldata)
+  # celltype-specific annotations have as many columns as there are annotated celltypes
+  # non-celltype-specific annotations have one `value` column, which applies across all celltypes
+  MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
+  saveRDS(MA, file = paste0(out$Base, "MA.rda"))
   return(MA)
+
+  # 5) XGBoost model training ======================================================================================================
+  # #### 6) XGBoost model training? ####
+  # XGBoost input
+  train <- master %>%
+    dplyr::rename(label = driver)
+
+  # MAE reformatting
+  # 1. Intersect DHS masterlist with variants
+  mat_var_DHSs <- open_variants %>%
+    dplyr::distinct(variant, DHSID, DHS) %>%
+    dplyr::left_join(., txv_master)
 
 }
 
 
 
-# open_variants %>%
-#   dplyr::select(variant, cs, DHS) %>%
-#   # Get annotations for all genes with TSSs within variant_to_gene_max_distance of every variant
-#   dplyr::right_join( weighted_gxv_annotations, by = c("variant", "cs")) %>%
-#   dplyr::left_join(  weighted_gxc_annotations, by = c("cs", "enst")) %>%
-#   dplyr::left_join(  weighted_gxd_annotations, by = c("DHS", "enst")) %>%
-#   dplyr::left_join(  weighted_v_annotations,   by = "variant") %>%
-#   dplyr::left_join(  weighted_g_annotations,   by = "enst") %>%
-#   dplyr::left_join(  weighted_d_annotations,   by = "DHS") %>%
-#   dplyr::left_join(  weighted_c_annotations,   by = "cs") %>%
-#   # Replace all NAs in numeric annotation value columns with 0
-#   dplyr::mutate_if(is.numeric, tidyr::replace_na, replace = 0) %>%
-#   # Add gene symbols and logical driver column (T/F)
-#   dplyr::left_join(target.gene.prediction.package::TSSs %>% dplyr::select(enst, symbol)) %>%
-#   dplyr::mutate(driver = symbol %in% drivers)
-#
-# # get annotation columns (all numeric columns in the master table)
-# annotation_cols <- master %>% dplyr::select(where(is.numeric)) %>% names()
-#
-# # Generate overall scores (rowwise sum function for now ; ## TODO: change!)
-# predictions <- master %>%
-#   dplyr::mutate(score = rowSums(dplyr::across(dplyr::all_of(annotation_cols)))) %>%
-#   dplyr::select(cs, symbol, score, driver) %>%
-#   dplyr::distinct()
-# predictions_out <- predictions %>%
-#   dplyr::select(-driver) %>%
-#   dplyr::group_by(cs, symbol) %>%
-#   dplyr::filter(score == max(score))
-#
-# # save output tables
-# cat("Saving prediction files...\n")
-# master %>% write_tibble(out$Annotations)
-# predictions_out %>% write_tibble(out$Predictions)
-#
-# # ======================================================================================================
-# # #### 5) PERFORMANCE ####
-#
+
 # # Generate PR curves (model performance metric)
 # performance <- target.gene.prediction.package::get_PR(predictions, score)
 # # PR of each individual annotation (columns of master)
@@ -266,5 +229,5 @@ predict_target_genes <- function(trait = NULL,
 # # 1. Intersect DHS masterlist with variants
 # mat_var_DHSs <- open_variants %>%
 #   dplyr::distinct(variant, DHSID, DHS) %>%
-#   dplyr::left_join(., gxv_master)
+#   dplyr::left_join(., txv_master)
 
