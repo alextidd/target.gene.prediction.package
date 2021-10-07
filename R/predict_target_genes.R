@@ -45,8 +45,8 @@ predict_target_genes <- function(trait = NULL,
 
   # import user-provided drivers and check that all symbols are in the GENCODE data
   cat("Importing driver genes...\n")
-  drivers <- target.gene.prediction.package::read_tibble(driversFile)$V1
-  target.gene.prediction.package::check_driver_symbols(drivers, driversFile)
+  drivers <- target.gene.prediction.package::read_tibble(driversFile)$V1 %>%
+    target.gene.prediction.package::check_driver_symbols(., driversFile)
 
   # import the contact data
   contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
@@ -105,11 +105,11 @@ predict_target_genes <- function(trait = NULL,
   # 3a) ENHANCER-LEVEL INPUTS ====
   # (Intersection with list of annotations, enhancers, GWAS statistics(?), etc...)
   v <- get_v_level_annotations(open_variants,
-                               enriched,
+                               DHSs,
                                variant_to_gene_max_distance)
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
-  t <- get_t_level_annotations(enriched)
+  t <- get_t_level_annotations(DHSs)
 
   # 3c) DHS-LEVEL INPUTS ====
   d <- get_d_level_annotations(open_variants)
@@ -122,7 +122,7 @@ predict_target_genes <- function(trait = NULL,
   # The package will consider all transcripts as potential targets of a variant in CS's whose ranges are within the max distance
   txv <- get_txv_level_annotations(open_variants,
                                    variant_to_gene_max_distance,
-                                   enriched,
+                                   DHSs,
                                    contact,
                                    TADs)
 
@@ -165,20 +165,40 @@ predict_target_genes <- function(trait = NULL,
   # non-celltype-specific annotations have one `value` column, which applies across all celltypes
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
-  return(MA)
 
   # 5) XGBoost model training ======================================================================================================
   # #### 6) XGBoost model training? ####
   # XGBoost input
-  train <- master %>%
-    dplyr::rename(label = driver)
 
-  # MAE reformatting
-  # 1. Intersect DHS masterlist with variants
-  mat_var_DHSs <- open_variants %>%
-    dplyr::distinct(variant, DHSID, DHS) %>%
-    dplyr::left_join(., txv_master)
+  # format training set
+  full <- names(master) %>%
+    lapply(function(name)
+      master[[name]] %>%
+        tibble::as_tibble(rownames = "pair") %>%
+        dplyr::rename_with(~ paste0(name, ".", .x), -pair)
+      ) %>%
+    purrr::reduce(dplyr::full_join, by = "pair") %>%
+    dplyr::mutate(label = greplany(drivers$enst, pair) %>% as.numeric)
+  train <- list(data = full %>% dplyr::select(-c(pair, label)) %>% as.matrix,
+                label = full$label)
+  dtrain <- xgboost::xgb.DMatrix(data = train$data ,
+                                 label = train$label)
+  # model training
+  xgb1 <- xgboost::xgboost(data = dtrain,
+                           max.depth = 2,
+                           eta = 1,
+                           nrounds = 100,
+                           objective = "binary:logistic",
+                           verbose = 1)
+  # view feature importance plot
+  xgb1_feature_importance_mat <- xgboost::xgb.importance(feature_names = colnames(dtrain), model = xgb1)
+  xgb1_feature_importance_plot <- xgboost::xgb.ggplot.importance(importance_matrix = xgb1_feature_importance_mat, top_n=50)
+  # save plot
+  pdf(paste0(out$Base, "xgb_model_feature_importance.pdf"))
+  print(xgb1_feature_importance_plot)
+  dev.off()
 
+  return(MA)
 }
 
 

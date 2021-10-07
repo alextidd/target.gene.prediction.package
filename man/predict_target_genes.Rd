@@ -18,19 +18,19 @@ predict_target_genes(
 )
 }
 \arguments{
-\item{trait}{The name of the trait of interest}
+\item{trait}{Optional. The name of the trait of interest.}
 
-\item{tissue}{The tissue(s) of action for the trait}
+\item{tissue}{Optional. The tissue(s) of action for the trait.}
 
-\item{outDir}{The output directory in which to save the predictions. Default is current directory}
+\item{outDir}{The output directory in which to save the predictions. Default is "./out".}
 
 \item{variantsFile}{A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants}
 
-\item{driversFile}{The file containing a list of driver gene symbols}
+\item{driversFile}{The file containing a list of trait driver gene symbols.}
 
-\item{referenceDir}{The directory containing the external, accompanying reference data}
+\item{referenceDir}{The directory containing the external, accompanying reference data.}
 
-\item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb.}
+\item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.}
 }
 \value{
 A file of variant-gene pair predictions, with associated scores, saved in the given output directory.

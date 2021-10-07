@@ -1,6 +1,6 @@
 get_txv_level_annotations <- function(open_variants,
                                       variant_to_gene_max_distance,
-                                      enriched,
+                                      DHSs,
                                       contact,
                                       TADs) {
   cat("Annotating transcript x variant pairs...\n")
@@ -46,7 +46,7 @@ get_txv_level_annotations <- function(open_variants,
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  txv <- contact %>%
+  txv_contact_scores <- contact %>%
     # Intersect with the contact data
     purrr::map(~ intersect_BEDPE(
       # ! For mutually exclusive intersection with HiC ranges, make variant intervals 1bp long, equal to the end position
@@ -69,14 +69,21 @@ get_txv_level_annotations <- function(open_variants,
     purrr::map(~ tidyr::pivot_wider(.,
       id_cols = c(variant, enst),
       names_from = celltype,
-      values_from = value)) %>%
-    # Add to txv list
-    c(., txv)
+      values_from = value))
+
+  # contact binary
+  txv_contact_binary <- txv_contact_scores %>%
+    purrr::map(~ dplyr::mutate(., dplyr::across(where(is.numeric), ~ dplyr::case_when(is.na(.) ~ 0,
+                                                                                      TRUE ~ 1))))
+  names(txv_contact_binary) <- paste0(names(txv_contact_binary), "_", "binary")
+
+  # contactenate
+  txv <- c(txv, txv_contact_scores, txv_contact_binary)
 
   ## ~10% of variant-TSS interactions indicated by the contact data
   ## are further than 2Mb apart and are thus eliminated
 
-  # get variants at promoters - score by sum of signal and specificity per enriched celltype at the DHS (~promoter activity)
+  # get variants at promoters - score by sum of signal and specificity percelltype at the DHS (~promoter activity)
   txv$promoter <- open_variants %>%
     dplyr::select(chrom:variant) %>%
     # Get variants within promoter regions
@@ -84,10 +91,10 @@ get_txv_level_annotations <- function(open_variants,
       target.gene.prediction.package::promoters,
       keepBcoords = F, keepBmetadata = T) %>%
     # Get DHS bins at those promoter variants
-    target.gene.prediction.package::intersect_DHSs(list(), ., enriched$DHSs) %>%
+    target.gene.prediction.package::intersect_DHSs(list(), ., DHSs) %>%
     dplyr::bind_rows() %>%
     # Sum specificity + signal bin per promoter variant per enriched cell type
-    dplyr::group_by(dplyr::across(setdiff(names(.), enriched$tissues$code))) %>%
+    dplyr::group_by(variant, enst) %>%
     dplyr::summarise(dplyr::across(everything(), sum)) %>%
     dplyr::ungroup()
 

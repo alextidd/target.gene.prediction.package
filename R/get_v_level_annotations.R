@@ -1,5 +1,5 @@
 get_v_level_annotations <- function(open_variants,
-                                    enriched,
+                                    DHSs,
                                     variant_to_gene_max_distance){
   cat("Annotating variants...\n")
 
@@ -8,7 +8,7 @@ get_v_level_annotations <- function(open_variants,
   # intersect with DHS binnings
   v <- v %>%
     intersect_DHSs(open_variants %>% dplyr::select(chrom:variant),
-                   enriched$DHSs)
+                   DHSs)
 
   # calculate n genes near each variant
   v$inv_n_genes <- open_variants %>%

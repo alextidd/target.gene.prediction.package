@@ -1,4 +1,4 @@
-get_t_level_annotations <- function(enriched){
+get_t_level_annotations <- function(DHSs){
   cat("Annotating transcripts...\n")
 
   t <- list()
@@ -6,7 +6,7 @@ get_t_level_annotations <- function(enriched){
   # intersect with DHSs
   t <- t %>%
     intersect_DHSs(target.gene.prediction.package::TSSs %>% dplyr::select(chrom:end, enst),
-                   enriched$DHSs)
+                   DHSs)
 
   # return
   names(t) <- paste0("t_", names(t))
