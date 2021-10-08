@@ -64,16 +64,15 @@ predict_target_genes <- function(trait = NULL,
 
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
-  enriched <- target.gene.prediction.package::get_enriched(DHSs$specificity, DHSs_metadata, variants)
+
+  enriched <- target.gene.prediction.package::get_enriched(DHSs$specificity, DHSs_metadata, contact_metadata, variants)
   cat("Enriched cell type(s): ", enriched$celltypes$code, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
   # Subset annotations
   enriched$DHSs <- DHSs %>%
     lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$code))
-  enriched$contact_elements <- contact_metadata %>%
-    dplyr::filter(Tissue %in% enriched$tissues$tissue) %>%
-    dplyr::pull(list_element)
+  enriched$contact <- contact[dplyr::filter(enriched$tissues, !is.na(list_element))$list_element]
 
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
@@ -99,8 +98,8 @@ predict_target_genes <- function(trait = NULL,
                     ) %>%
     dplyr::mutate(pair = paste0(variant, "|", enst))
 
-  # 3) SCORING ======================================================================================================
-  cat("3) Scoring enhancer-gene pairs...\n")
+  # 3) ANNOTATING ======================================================================================================
+  cat("3) Annotation enhancer-gene pairs...\n")
 
   # 3a) ENHANCER-LEVEL INPUTS ====
   # (Intersection with list of annotations, enhancers, GWAS statistics(?), etc...)
@@ -147,7 +146,7 @@ predict_target_genes <- function(trait = NULL,
   cat("3) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
   master <- c(v, t, d, c, txv, gxv, txc, txd) %>%
     purrr::map(~ matricise_by_pair(., txv_master))
-  master %>% write_tibble(out$Annotations)
+  # master %>% write_tibble(out$Annotations)
 
   # MultiAssayExperiment
   sample_list <- readRDS(paste0(referenceDir, "sample_list.rda"))
@@ -166,10 +165,80 @@ predict_target_genes <- function(trait = NULL,
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
 
-  # 5) XGBoost model training ======================================================================================================
-  # #### 6) XGBoost model training? ####
-  # XGBoost input
+  # 5) SCORING ======================================================================================================
+  cat("5) Scoring enhancer-gene pairs...\n")
+  # Generating a single score for each enhancer-gene pair, with evidence
+  # sum(all non-celltype-specific values, enriched celltype-specific annotations)
+  scores <- names(master) %>%
+    # create comma-concatenated list of non-zero annotations contributing to the scores of each pair
+    lapply(function(name)
+      master[[name]] %>%
+        tibble::as_tibble(rownames = "pair") %>%
+        dplyr::rename_with(~ paste0(name, ".", .x), -pair) %>%
+        tidyr::pivot_longer(names_to = "annotation",
+                            values_to = "value",
+                            cols = where(is.numeric)) %>%
+        dplyr::filter(value > 0, greplany(paste0("\\.", c("value", enriched$tissues$code)), annotation)) %>%
+        dplyr::group_by(pair)
+    ) %>%
+    purrr::reduce(dplyr::bind_rows) %>%
+    dplyr::group_by(pair) %>%
+    dplyr::mutate(score = sum(value),
+                  evidence = paste(annotation, collapse = ","),
+                  n_evidence = dplyr::n_distinct(annotation)) %>%
+    dplyr::ungroup() %>%
+    # spread out annotations again
+    tidyr::pivot_wider(id_cols = c(pair, score, evidence, n_evidence),
+                       names_from = annotation,
+                       values_from = value) %>%
+    # get CSs and symbols
+    dplyr::left_join(txv_master %>% dplyr::select(pair, cs, symbol)) %>%
+    # reorder columns
+    dplyr::select(cs, symbol, score, n_evidence, evidence, where(is.numeric))
 
+  # 6) PERFORMANCE ======================================================================================================
+  # Generate PR curves (model performance metric)
+  performance <- scores %>%
+    # add drivers
+    dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
+    # get performance
+    target.gene.prediction.package::get_PR(txv_master, dplyr::starts_with(names(master))) %>%
+    # add annotation level info
+    purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
+
+  pdf(out$PR, height = 10, onefile = T)
+  performance$PR %>%
+    dplyr::filter(prediction_method == "score") %>%
+    target.gene.prediction.package::plot_PR(colour = prediction_type)
+  performance$PR %>%
+    dplyr::filter(prediction_method == "score") %>%
+    dplyr::select(prediction_type, AUC) %>%
+    dplyr::distinct() %>%
+    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, AUC),
+                                 y = AUC)) +
+    ggplot2::geom_col() +
+    ggplot2::coord_flip() +
+    ggplot2::labs(x = "Predictor", y = "PR AUC")
+  performance$PR %>%
+    dplyr::filter(AUC == max(AUC)) %>%
+    plot_PR(colour = prediction_method) +
+    ggplot2::labs(x = paste("recall (n = ", unique(performance$summary$True)))
+    ggplot2::theme(legend.position = "none")
+  performance$PR %>%
+    dplyr::select(prediction_method, prediction_type, AUC) %>%
+    dplyr::filter(prediction_type == "score") %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
+    dplyr::distinct() %>%
+    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, AUC),
+                                 y = AUC,
+                                 fill = level)) +
+    ggplot2::geom_col() +
+    ggplot2::labs(x = "Predictor", y = "PR AUC") +
+    ggplot2::facet_wrap( ~ level, scales = "free_x")
+  dev.off()
+
+  # 7) XGBoost MODEL TRAINING ======================================================================================================
   # format training set
   full <- names(master) %>%
     lapply(function(name)
@@ -198,12 +267,30 @@ predict_target_genes <- function(trait = NULL,
   print(xgb1_feature_importance_plot)
   dev.off()
 
+  # Sc
+
   return(MA)
 }
 
 
 
 
+# # scores for final cs|gene predictions
+# gxc_predictions <- txv_scores %>%
+#   dplyr::left_join(txv_master %>% dplyr::select(pair, symbol, cs)) %>%
+#   # filter to the maximum-scoring pair for each CS-gene combination
+#   dplyr::group_by(cs, symbol) %>%
+#   dplyr::filter(score == max(score)) %>%
+#   # find the maximum-scoring gene for each CS
+#   dplyr::group_by(cs) %>%
+#   dplyr::mutate(max_score = as.numeric(score == max(score))) %>%
+#   # find predictions (score > mean(score))
+#   dplyr::ungroup() %>%
+#   dplyr::mutate(prediction = as.numeric(score > mean(score))) %>%
+#   # calculate number of pieces of pair-supporting evidence
+#   dplyr::mutate(n_evidence = stringr::str_count(evidence, ",") + 1) %>%
+#   # finalise columns
+#   dplyr::select(cs, symbol, score, prediction, max_score, n_evidence, evidence)
 # # Generate PR curves (model performance metric)
 # performance <- target.gene.prediction.package::get_PR(predictions, score)
 # # PR of each individual annotation (columns of master)
@@ -238,16 +325,5 @@ predict_target_genes <- function(trait = NULL,
 #   ggplot2::labs(x = "Predictor", y = "PR AUC") +
 #   ggplot2::facet_wrap( ~ level, scales = "free_x")
 # dev.off()
-#
-# # ======================================================================================================
-# # #### 6) XGBoost model training? ####
-# # XGBoost input
-# train <- master %>%
-#   dplyr::rename(label = driver)
-#
-# # MAE reformatting
-# # 1. Intersect DHS masterlist with variants
-# mat_var_DHSs <- open_variants %>%
-#   dplyr::distinct(variant, DHSID, DHS) %>%
-#   dplyr::left_join(., txv_master)
+
 

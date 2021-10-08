@@ -4,12 +4,12 @@
 \alias{get_PR}
 \title{Get PR statistics for the predictions}
 \usage{
-get_PR(predictions, ...)
+get_PR(scores, txv_master, ...)
 }
 \arguments{
-\item{predictions}{`predictions` df in predict_target_genes function}
-
 \item{...}{Columns to use as predictors}
+
+\item{predictions}{`predictions` df in predict_target_genes function}
 }
 \value{
 `PR` tibble

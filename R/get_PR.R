@@ -7,39 +7,44 @@
 #'
 #' @return `PR` tibble
 #' @export
-get_PR <- function(predictions, ...){
+get_PR <- function(scores, txv_master, ...){
 
   performance <- list()
 
   # score, prediction and max
-  pred <- predictions %>%
+  pred <- scores %>%
     # get predictions only in CSs with a driver within max prediction distance for performance evaluation
     get_testable() %>%
     dplyr::select(cs, symbol, ..., driver) %>%
     # gather prediction method columns
-    tidyr::gather(key = "prediction_method",
-                  value = "score",
-                  ...) %>%
+    tidyr::pivot_longer(names_to = "prediction_method",
+                        values_to = "score",
+                        ...) %>%
+    # replace NAs with 0s
+    dplyr::mutate(score = score %>% tidyr::replace_na(0)) %>%
     # get maximum score per CS-x-gene-x-method
     dplyr::group_by(prediction_method, cs, symbol) %>%
     dplyr::filter(score == max(score)) %>%
     # find maximum scoring gene per CS-x-method
     dplyr::group_by(prediction_method, cs) %>%
-    dplyr::mutate(max = score == max(score)) %>%
+    dplyr::mutate(max = as.numeric(score == max(score))) %>%
     dplyr::ungroup() %>%
     # find positives (score > median(score)) overall
-    dplyr::mutate(prediction = score > median(score)) %>%
+    dplyr::mutate(prediction = as.numeric(score > median(score))) %>%
     # gather prediction type columns
-    tidyr::gather(key = "prediction_type",
-                  value = "prediction",
-                  score, max, prediction)
+    tidyr::pivot_longer(c(score, max, prediction),
+                        names_to = "prediction_type",
+                        values_to = "prediction")
 
   # get summary statistics (various performance metrics)
   performance$summary <- pred %>%
-    dplyr::mutate(prediction = dplyr::case_when(prediction == 0 ~ FALSE, TRUE ~ TRUE)) %>%
+    # score is not binary, cannot be summarised, filter out
+    dplyr::filter(prediction_type != "score") %>%
+    dplyr::mutate(prediction = as.logical(prediction)) %>%
     dplyr::group_by(prediction_method, prediction_type) %>%
     dplyr::group_modify(
-      ~ data.frame(Positive = .x %>% condition_n_genes(prediction),
+      ~ data.frame(True = .x %>% condition_n_genes(driver),
+                   Positive = .x %>% condition_n_genes(prediction),
                    TP = .x %>% condition_n_genes(prediction & driver),
                    FP = .x %>% condition_n_genes(prediction & !driver),
                    TN = .x %>% condition_n_genes(!prediction & !driver),

@@ -1,4 +1,4 @@
-get_enriched <- function(DHSs, DHSs_metadata, variants){
+get_enriched <- function(DHSs, DHSs_metadata, contact_metadata, variants){
   enriched <- list()
   enriched[["celltypes"]] <- DHSs %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
@@ -19,6 +19,7 @@ get_enriched <- function(DHSs, DHSs_metadata, variants){
     dplyr::pull(annotation) %>% gsub(".*_", "", .) %>%
     {dplyr::filter(DHSs_metadata, code %in% .)}
   enriched[["tissues"]] <- DHSs_metadata %>%
+    dplyr::bind_rows(contact_metadata %>% dplyr::rename(tissue = Tissue, code = CellType)) %>%
     dplyr::filter(tissue %in% enriched$celltypes$tissue)
   return(enriched)
 }

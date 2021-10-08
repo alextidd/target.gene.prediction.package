@@ -18,6 +18,7 @@ Imports:
     dplyr,
     tidyr,
     readr,
+    stringr,
     tibble,
     purrr,
     utils,
