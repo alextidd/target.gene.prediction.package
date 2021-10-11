@@ -16,6 +16,7 @@ get_PR <- function(scores, txv_master, ...){
     # get predictions only in CSs with a driver within max prediction distance for performance evaluation
     get_testable() %>%
     dplyr::select(cs, symbol, ..., driver) %>%
+    dplyr::distinct() %>%
     # gather prediction method columns
     tidyr::pivot_longer(names_to = "prediction_method",
                         values_to = "score",
@@ -30,7 +31,7 @@ get_PR <- function(scores, txv_master, ...){
     dplyr::mutate(max = as.numeric(score == max(score))) %>%
     dplyr::ungroup() %>%
     # find positives (score > median(score)) overall
-    dplyr::mutate(prediction = as.numeric(score > median(score))) %>%
+    dplyr::mutate(prediction = as.numeric(score >= median(score))) %>%
     # gather prediction type columns
     tidyr::pivot_longer(c(score, max, prediction),
                         names_to = "prediction_type",

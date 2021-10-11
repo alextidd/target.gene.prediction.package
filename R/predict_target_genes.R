@@ -58,6 +58,8 @@ predict_target_genes <- function(trait = NULL,
   DHSs_master <-  DHSs[[1]] %>%
     dplyr::distinct(chrom, start, end, DHS) %>%
     dplyr::mutate(DHSID = paste0(".", dplyr::row_number()))
+  specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
+  specific_DHSs_closest_specific_genes_metadata <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes_metadata.rda"))
 
   # import the TADs data
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
@@ -65,13 +67,19 @@ predict_target_genes <- function(trait = NULL,
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
 
-  enriched <- target.gene.prediction.package::get_enriched(DHSs$specificity, DHSs_metadata, contact_metadata, variants)
+  enriched <- target.gene.prediction.package::get_enriched(DHSs$specificity,
+                                                           DHSs_metadata,
+                                                           contact_metadata,
+                                                           specific_DHSs_closest_specific_genes_metadata,
+                                                           variants)
   cat("Enriched cell type(s): ", enriched$celltypes$code, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
-  # Subset annotations
+  # Subset annotations to those in enriched tissues
   enriched$DHSs <- DHSs %>%
     lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$code))
+  enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
+    dplyr::select(DHS, dplyr::contains(enriched$tissues$code))
   enriched$contact <- contact[dplyr::filter(enriched$tissues, !is.na(list_element))$list_element]
 
   # 2) ENHANCER VARIANTS ======================================================================================================
@@ -138,13 +146,17 @@ predict_target_genes <- function(trait = NULL,
   txd <- get_txd_level_annotations(ensts_near_vars,
                                    DHSs_master)
 
+  # 3i) GENE-X-DHS-LEVEL INPUTS
+  gxd <- get_gxd_level_annotations(open_variants,
+                                   specific_DHSs_closest_specific_genes)
+
   # 4) ALL INPUTS ======================================================================================================
   # Master variant-transcript matrix list
   # -> wide-format (one row per transcript|variant pair, one column per celltype)
   # -> only variant-transcript combinations within 2Mb are included
   # -> pair ID rownames: variant|enst
   cat("3) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
-  master <- c(v, t, d, c, txv, gxv, txc, txd) %>%
+  master <- c(v, t, d, c, txv, gxv, txc, txd, gxd) %>%
     purrr::map(~ matricise_by_pair(., txv_master))
   # master %>% write_tibble(out$Annotations)
 
@@ -178,8 +190,7 @@ predict_target_genes <- function(trait = NULL,
         tidyr::pivot_longer(names_to = "annotation",
                             values_to = "value",
                             cols = where(is.numeric)) %>%
-        dplyr::filter(value > 0, greplany(paste0("\\.", c("value", enriched$tissues$code)), annotation)) %>%
-        dplyr::group_by(pair)
+        dplyr::filter(value > 0, greplany(paste0("\\.", c("value", enriched$tissues$code)), annotation))
     ) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     dplyr::group_by(pair) %>%
@@ -193,7 +204,7 @@ predict_target_genes <- function(trait = NULL,
                        values_from = value) %>%
     # get CSs and symbols
     dplyr::left_join(txv_master %>% dplyr::select(pair, cs, symbol)) %>%
-    # reorder columns
+    # select columns
     dplyr::select(cs, symbol, score, n_evidence, evidence, where(is.numeric))
 
   # 6) PERFORMANCE ======================================================================================================
@@ -202,7 +213,7 @@ predict_target_genes <- function(trait = NULL,
     # add drivers
     dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
     # get performance
-    target.gene.prediction.package::get_PR(txv_master, dplyr::starts_with(names(master))) %>%
+    target.gene.prediction.package::get_PR(txv_master, c("score", dplyr::starts_with(names(master)))) %>%
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
@@ -222,8 +233,9 @@ predict_target_genes <- function(trait = NULL,
   performance$PR %>%
     dplyr::filter(AUC == max(AUC)) %>%
     plot_PR(colour = prediction_method) +
-    ggplot2::labs(x = paste("recall (n = ", unique(performance$summary$True)))
-    ggplot2::theme(legend.position = "none")
+    ggplot2::labs(x = paste("recall (n = ", unique(performance$summary$True))) +
+    ggplot2::facet_wrap(~ level)
+    #ggplot2::theme(legend.position = "none")
   performance$PR %>%
     dplyr::select(prediction_method, prediction_type, AUC) %>%
     dplyr::filter(prediction_type == "score") %>%
@@ -235,7 +247,7 @@ predict_target_genes <- function(trait = NULL,
                                  fill = level)) +
     ggplot2::geom_col() +
     ggplot2::labs(x = "Predictor", y = "PR AUC") +
-    ggplot2::facet_wrap( ~ level, scales = "free_x")
+    ggplot2::coord_flip()
   dev.off()
 
   # 7) XGBoost MODEL TRAINING ======================================================================================================
@@ -266,8 +278,6 @@ predict_target_genes <- function(trait = NULL,
   pdf(paste0(out$Base, "xgb_model_feature_importance.pdf"))
   print(xgb1_feature_importance_plot)
   dev.off()
-
-  # Sc
 
   return(MA)
 }

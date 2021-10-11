@@ -4,7 +4,7 @@ get_txd_level_annotations <- function(ensts_near_vars,
 
   txd <- list()
 
-  # Closest DHS to the gene?
+  # closest DHS to the transcript
   txd$closest <- valr::bed_closest(target.gene.prediction.package::TSSs %>%
                                      dplyr::filter(enst %in% ensts_near_vars),
                                    DHSs_master) %>%
