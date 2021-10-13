@@ -1,6 +1,6 @@
 get_v_level_annotations <- function(open_variants,
                                     DHSs,
-                                    variant_to_gene_max_distance){
+                                    txv_master){
   cat("Annotating variants...\n")
 
   v <- list()
@@ -11,16 +11,16 @@ get_v_level_annotations <- function(open_variants,
                    DHSs)
 
   # calculate n genes near each variant
-  v$inv_n_genes <- open_variants %>%
-    # Get genes within xMb of each variant
-    valr::bed_slop(both = variant_to_gene_max_distance,
-                   genome = target.gene.prediction.package::ChrSizes,
-                   trim = T) %>%
-    valr::bed_intersect(., target.gene.prediction.package::TSSs, suffix = c("", ".TSS")) %>%
-    dplyr::count(variant) %>%
-    dplyr::transmute(variant,
-                     value = 1/n)
-
+  v <- txv_master %>%
+    dplyr::group_by(variant) %>%
+    dplyr::summarise(inv_n_genes = 1/dplyr::n_distinct(symbol),
+                     inv_n_transcripts = 1/dplyr::n_distinct(enst)) %>%
+    tidyr::pivot_longer(c(inv_n_genes, inv_n_transcripts),
+                        names_to = "split",
+                        values_to = "value") %>%
+    split(as.factor(.$split)) %>%
+    purrr::map(~ dplyr::select(., -split)) %>%
+    c(., v)
 
   # return
   names(v) <- paste0("v_", names(v))

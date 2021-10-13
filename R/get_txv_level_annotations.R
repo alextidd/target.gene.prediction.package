@@ -1,4 +1,4 @@
-get_txv_level_annotations <- function(open_variants,
+get_txv_level_annotations <- function(txv_master,
                                       variant_to_gene_max_distance,
                                       DHSs,
                                       contact,
@@ -8,25 +8,13 @@ get_txv_level_annotations <- function(open_variants,
   txv <- list()
 
   # TSS distance scoring method (these pairings are the only ones to consider)
-  distance <- open_variants %>%
-    # Get genes within variant_to_gene_max_distance of each variant
-    valr::bed_slop(both = variant_to_gene_max_distance,
-                   genome = target.gene.prediction.package::ChrSizes,
-                   trim = T) %>%
-    valr::bed_intersect(., target.gene.prediction.package::TSSs,
-                        suffix = c(".variant", ".TSS")) %>%
-    dplyr::group_by(variant.variant) %>%
+  distance <- txv_master %>%
+    dplyr::group_by(variant) %>%
     # Calculate inverse of the absolute bp distance for each variant-transcript pair
     dplyr::mutate(pair.distance = abs((start.variant + variant_to_gene_max_distance) - start.TSS),
                   pair.inverse_distance = 1/pair.distance,
                   # ranking transcript TSSs (if two transcript TSSs are equidistant to the variant, they will receive the same, lower rank)
-                  pair.inverse_distance_rank = 1/rank(pair.distance, ties.method = "min")) %>%
-    dplyr::select(variant = variant.variant,
-                  cs = cs.variant,
-                  DHS = DHS.variant,
-                  enst = enst.TSS,
-                  pair.inverse_distance,
-                  pair.inverse_distance_rank)
+                  pair.inverse_distance_rank = 1/rank(pair.distance, ties.method = "min"))
 
   # variant-TSS inverse distance score method
   txv$inv_distance <- distance %>%
@@ -49,7 +37,7 @@ get_txv_level_annotations <- function(open_variants,
   txv_contact_scores <- contact %>%
     # Intersect with the contact data
     purrr::map(~ intersect_BEDPE(
-      # ! For mutually exclusive intersection with HiC ranges, make variant intervals 1bp long, equal to the end position
+      # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
       SNPend = open_variants %>% dplyr::mutate(start = end),
       TSSend = target.gene.prediction.package::TSSs,
       bedpe = .) %>%
@@ -67,15 +55,37 @@ get_txv_level_annotations <- function(open_variants,
     split(f = .$assay) %>%
     # Widen
     purrr::map(~ tidyr::pivot_wider(.,
-      id_cols = c(variant, enst),
-      names_from = celltype,
-      values_from = value))
+                                    id_cols = c(variant, enst),
+                                    names_from = celltype,
+                                    values_from = value))
 
   # contact binary
   txv_contact_binary <- txv_contact_scores %>%
     purrr::map(~ dplyr::mutate(., dplyr::across(where(is.numeric), ~ dplyr::case_when(is.na(.) ~ 0,
                                                                                       TRUE ~ 1))))
   names(txv_contact_binary) <- paste0(names(txv_contact_binary), "_", "binary")
+
+  # contact binary - using top 50% of scores in each sample
+  txv_contact_binary_top_half <- contact %>%
+    purrr::map(~ purrr::map(., ~ dplyr::filter(., score >= median(score))))
+
+  # Problem to FIX!!! 4 datasets in which the bulk (>70%) of the distribution of scores is equal to the minimum score
+  # - colorectal_HiChIP
+  # - Hct116_ChIAPET
+  # - Helas3_ChIAPET
+  # - Nb4_ChIAPET
+  contact %>% names %>%
+    purrr::map(~ data.frame(assay = .,
+                            n.scores = nrow(contact[[.]]$first),
+                            n.above.or.equal.median.score = dplyr::filter(contact[[.]]$first, score >= median(score)) %>% nrow,
+                            n.above.median.score = dplyr::filter(contact[[.]]$first, score > median(score)) %>% nrow,
+                            n.equal.median.score = dplyr::filter(contact[[.]]$first, score == median(score)) %>% nrow,
+                            n.equal.min.score = dplyr::filter(contact[[.]]$first, score == min(score)) %>% nrow,
+                            n.distinct.scores = contact[[.]]$first$score %>% dplyr::n_distinct()))  %>%
+    purrr::reduce(dplyr::bind_rows) %>% tibble::as_tibble() %>%
+    dplyr::mutate(percent.of.scores.equal.to.median = (n.equal.median.score/n.scores)*100,
+                  percent.of.scores.equal.to.min = (n.equal.min.score/n.scores)*100) %>%
+    dplyr::filter(n.above.or.equal.median.score > ((n.scores/2) + (0.01*n.scores)))
 
   # contactenate
   txv <- c(txv, txv_contact_scores, txv_contact_binary)

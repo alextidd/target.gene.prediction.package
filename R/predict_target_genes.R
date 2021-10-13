@@ -75,7 +75,7 @@ predict_target_genes <- function(trait = NULL,
   cat("Enriched cell type(s): ", enriched$celltypes$code, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
-  # Subset annotations to those in enriched tissues
+  # Subset annotations to those in enriched tissues (## TODO: take out?)
   enriched$DHSs <- DHSs %>%
     lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$code))
   enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
@@ -98,22 +98,24 @@ predict_target_genes <- function(trait = NULL,
                    trim = T) %>%
     valr::bed_intersect(., target.gene.prediction.package::TSSs,
                         suffix = c(".variant", ".TSS")) %>%
-    dplyr::distinct(variant = variant.variant,
+    dplyr::distinct(chrom,
+                    start.variant = start.variant + variant_to_gene_max_distance,
+                    end.variant = end.variant - variant_to_gene_max_distance,
+                    start.TSS, end.TSS,
+                    variant = variant.variant,
+                    pair = paste0(variant.variant, "|", enst.TSS),
                     cs = cs.variant,
                     DHS = DHS.variant,
                     enst = enst.TSS,
-                    symbol = symbol.TSS
-                    ) %>%
-    dplyr::mutate(pair = paste0(variant, "|", enst))
+                    symbol = symbol.TSS)
 
   # 3) ANNOTATING ======================================================================================================
   cat("3) Annotation enhancer-gene pairs...\n")
 
-  # 3a) ENHANCER-LEVEL INPUTS ====
-  # (Intersection with list of annotations, enhancers, GWAS statistics(?), etc...)
+  # 3a) VARIANT-LEVEL INPUTS ====
   v <- get_v_level_annotations(open_variants,
                                DHSs,
-                               variant_to_gene_max_distance)
+                               txv_master)
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
   t <- get_t_level_annotations(DHSs)
@@ -125,9 +127,7 @@ predict_target_genes <- function(trait = NULL,
   c <- get_c_level_annotations(open_variants)
 
   # 3e) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
-  # (3C interaction, distance, etc...)
-  # The package will consider all transcripts as potential targets of a variant in CS's whose ranges are within the max distance
-  txv <- get_txv_level_annotations(open_variants,
+  txv <- get_txv_level_annotations(txv_master,
                                    variant_to_gene_max_distance,
                                    DHSs,
                                    contact,
@@ -189,8 +189,8 @@ predict_target_genes <- function(trait = NULL,
         dplyr::rename_with(~ paste0(name, ".", .x), -pair) %>%
         tidyr::pivot_longer(names_to = "annotation",
                             values_to = "value",
-                            cols = where(is.numeric)) %>%
-        dplyr::filter(value > 0, greplany(paste0("\\.", c("value", enriched$tissues$code)), annotation))
+                            cols = where(is.numeric)) #%>%
+        #dplyr::filter(value > 0, greplany(paste0("\\.", c("value", enriched$tissues$code)), annotation))
     ) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     dplyr::group_by(pair) %>%
@@ -206,6 +206,12 @@ predict_target_genes <- function(trait = NULL,
     dplyr::left_join(txv_master %>% dplyr::select(pair, cs, symbol)) %>%
     # select columns
     dplyr::select(cs, symbol, score, n_evidence, evidence, where(is.numeric))
+
+  # predictions to save
+  predictions <- scores %>%
+    dplyr::group_by(cs) %>%
+    dplyr::mutate(max = score == max(score)) %>%
+    dplyr::select(cs, symbol, score, max, n_evidence, evidence)
 
   # 6) PERFORMANCE ======================================================================================================
   # Generate PR curves (model performance metric)
@@ -233,8 +239,7 @@ predict_target_genes <- function(trait = NULL,
   performance$PR %>%
     dplyr::filter(AUC == max(AUC)) %>%
     plot_PR(colour = prediction_method) +
-    ggplot2::labs(x = paste("recall (n = ", unique(performance$summary$True))) +
-    ggplot2::facet_wrap(~ level)
+    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")"))
     #ggplot2::theme(legend.position = "none")
   performance$PR %>%
     dplyr::select(prediction_method, prediction_type, AUC) %>%
@@ -248,21 +253,25 @@ predict_target_genes <- function(trait = NULL,
     ggplot2::geom_col() +
     ggplot2::labs(x = "Predictor", y = "PR AUC") +
     ggplot2::coord_flip()
+  performance$summary %>%
+    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, Fscore),
+                                 y = Fscore,
+                                 fill = level)) +
+    ggplot2::geom_col() +
+    ggplot2::facet_wrap(~prediction_type) +
+    ggplot2::coord_flip()
   dev.off()
 
   # 7) XGBoost MODEL TRAINING ======================================================================================================
   # format training set
-  full <- names(master) %>%
-    lapply(function(name)
-      master[[name]] %>%
-        tibble::as_tibble(rownames = "pair") %>%
-        dplyr::rename_with(~ paste0(name, ".", .x), -pair)
-      ) %>%
-    purrr::reduce(dplyr::full_join, by = "pair") %>%
-    dplyr::mutate(label = greplany(drivers$enst, pair) %>% as.numeric)
-  train <- list(data = full %>% dplyr::select(-c(pair, label)) %>% as.matrix,
+  full <- scores %>%
+    dplyr::mutate(label = (symbol %in% drivers$symbol) %>% as.numeric) %>%
+    dplyr::group_by(cs) %>%
+    dplyr::filter(any(label == T)) %>%
+    dplyr::ungroup()
+  train <- list(data = full %>% dplyr::select(-c(cs, symbol, evidence, n_evidence, label)) %>% as.matrix,
                 label = full$label)
-  dtrain <- xgboost::xgb.DMatrix(data = train$data ,
+  dtrain <- xgboost::xgb.DMatrix(data = train$data,
                                  label = train$label)
   # model training
   xgb1 <- xgboost::xgboost(data = dtrain,
@@ -278,6 +287,14 @@ predict_target_genes <- function(trait = NULL,
   pdf(paste0(out$Base, "xgb_model_feature_importance.pdf"))
   print(xgb1_feature_importance_plot)
   dev.off()
+
+  # 8) SAVE ===
+  save(MA,
+       master,
+       predictions,
+       performance,
+       xgb1,
+       file = paste0(out$Base))
 
   return(MA)
 }
