@@ -1,26 +1,38 @@
-get_enriched <- function(DHSs, DHSs_metadata, contact_metadata, specific_DHSs_closest_specific_genes_metadata, variants){
-  enriched <- list()
-  enriched[["celltypes"]] <- DHSs %>%
+get_enriched <- function(DHSs,
+                         DHSs_metadata,
+                         contact_metadata,
+                         variants,
+                         estimate_cutoff = 2,
+                         p.value_cutoff = 0.05){
+
+  specific_DHSs <- DHSs$specificity %>%
     # Fisher enrichment test of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
     tidyr::gather(key = "annotation",
                   value = "decile",
                   -c(chrom:DHS)) %>%
-    dplyr::filter(decile == 1) %>%
-    target.gene.prediction.package::bed_fisher_grouped(
-      bedA = .,
+    dplyr::filter(decile == 1)
+
+  counts <- target.gene.prediction.package::bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
+    dplyr::group_by(annotation) %>%
+    dplyr::count(name = "n_intersections") %>%
+    dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant))
+
+  enriched <- list()
+  enriched[["celltypes"]] <- target.gene.prediction.package::bed_fisher_grouped(
+      bedA = specific_DHSs,
       bedA_groups = "annotation",
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
       # filter for effect and significance
-      estimate > 2,
-      p.value < 0.05
+      estimate > estimate_cutoff,
+      p.value < p.value_cutoff
     ) %>%
+    dplyr::left_join(counts) %>%
     # Extract enriched cell types
-    dplyr::pull(annotation) %>% gsub(".*_", "", .) %>%
-    {dplyr::filter(DHSs_metadata, code %in% .)}
-  enriched[["tissues"]] <- DHSs_metadata %>%
-    dplyr::bind_rows(contact_metadata %>% dplyr::rename(tissue = Tissue, code = CellType)) %>%
-    dplyr::bind_rows(specific_DHSs_closest_specific_genes_metadata) %>%
+    dplyr::pull(annotation) %>%
+    {dplyr::filter(DHSs_metadata, mnemonic %in% .)}
+  enriched[["tissues"]] <- DHSs_metadata %>% dplyr::mutate(object = "DHSs") %>%
+    dplyr::bind_rows(contact_metadata %>% dplyr::mutate(object = "contact")) %>%
     dplyr::filter(tissue %in% enriched$celltypes$tissue)
   return(enriched)
 }

@@ -59,7 +59,6 @@ predict_target_genes <- function(trait = NULL,
     dplyr::distinct(chrom, start, end, DHS) %>%
     dplyr::mutate(DHSID = paste0(".", dplyr::row_number()))
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
-  specific_DHSs_closest_specific_genes_metadata <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes_metadata.rda"))
 
   # import the TADs data
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
@@ -67,20 +66,19 @@ predict_target_genes <- function(trait = NULL,
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
 
-  enriched <- target.gene.prediction.package::get_enriched(DHSs$specificity,
+  enriched <- target.gene.prediction.package::get_enriched(DHSs,
                                                            DHSs_metadata,
                                                            contact_metadata,
-                                                           specific_DHSs_closest_specific_genes_metadata,
                                                            variants)
-  cat("Enriched cell type(s): ", enriched$celltypes$code, "\n")
+  cat("Enriched cell type(s): ", enriched$celltypes$mnemonic, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
   # Subset annotations to those in enriched tissues (## TODO: take out?)
   enriched$DHSs <- DHSs %>%
-    lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$code))
+    lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
   enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
-    dplyr::select(DHS, dplyr::contains(enriched$tissues$code))
-  enriched$contact <- contact[dplyr::filter(enriched$tissues, !is.na(list_element))$list_element]
+    dplyr::select(DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
+  enriched$contact <- contact[enriched$tissues$list_element[!is.na(enriched$tissues$list_element)]]
 
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')

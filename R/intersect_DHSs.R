@@ -14,8 +14,11 @@ intersect_DHSs <- function(list,
                            ...){
 
   # intersect with query bed
-  list[["DHSs_specificity"]] <- int_func(query, DHSs[["specificity"]])
-  list[["DHSs_signal"]] <- int_func(query, DHSs[["signal"]])
+  list <- DHSs %>%
+    lapply(function(x){
+      int_func(query, x)
+    })
+  names(list) <- paste0("DHSs_", names(list))
   return(list)
 
 }
