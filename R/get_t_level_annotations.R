@@ -6,7 +6,8 @@ get_t_level_annotations <- function(DHSs){
   # intersect with DHSs
   t <- t %>%
     intersect_DHSs(target.gene.prediction.package::TSSs %>% dplyr::select(chrom:end, enst),
-                   DHSs)
+                   DHSs,
+                   enst)
 
   # return
   names(t) <- paste0("t_", names(t))

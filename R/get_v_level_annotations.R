@@ -7,8 +7,9 @@ get_v_level_annotations <- function(open_variants,
 
   # intersect with DHS binnings
   v <- v %>%
-    intersect_DHSs(open_variants %>% dplyr::select(chrom:variant),
-                   DHSs)
+    intersect_DHSs(query = open_variants,
+                   DHSs = DHSs,
+                   variant)
 
   # calculate n genes near each variant
   v <- txv_master %>%

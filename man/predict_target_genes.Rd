@@ -14,7 +14,8 @@ predict_target_genes(
     driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
  
     referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
-  variant_to_gene_max_distance = 2e+06
+  variant_to_gene_max_distance = 2e+06,
+  XGBoost = F
 )
 }
 \arguments{

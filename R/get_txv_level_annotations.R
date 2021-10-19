@@ -58,37 +58,39 @@ get_txv_level_annotations <- function(txv_master,
                                     id_cols = c(variant, enst),
                                     names_from = celltype,
                                     values_from = value))
+  txv <- c(txv, txv_contact_scores)
 
   # contact binary
   txv_contact_binary <- txv_contact_scores %>%
     purrr::map(~ dplyr::mutate(., dplyr::across(where(is.numeric), ~ dplyr::case_when(is.na(.) ~ 0,
                                                                                       TRUE ~ 1))))
   names(txv_contact_binary) <- paste0(names(txv_contact_binary), "_", "binary")
+  txv <- c(txv, txv_contact_binary)
 
-  # contact binary - using top 50% of scores in each sample
-  txv_contact_binary_top_half <- contact %>%
-    purrr::map(~ purrr::map(., ~ dplyr::filter(., score >= median(score))))
+  # contact binary - using top 50% of scores for txv conntactions in each sample
+  txv_contact_binary_top_half <- txv_contact_scores %>%
+    purrr::map(~ dplyr::mutate(., dplyr::across(where(is.numeric), ~ dplyr::case_when(.x > median(.x, na.rm = T) ~ .x,
+                                                                                   TRUE ~ 0))))
+  names(txv_contact_binary_top_half) <- paste0(names(txv_contact_binary), "_", "binary_top_half")
+  txv <- c(txv, txv_contact_binary_top_half)
 
   # Problem to FIX!!! 4 datasets in which the bulk (>70%) of the distribution of scores is equal to the minimum score
   # - colorectal_HiChIP
   # - Hct116_ChIAPET
   # - Helas3_ChIAPET
   # - Nb4_ChIAPET
-  contact %>% names %>%
-    purrr::map(~ data.frame(assay = .,
-                            n.scores = nrow(contact[[.]]$first),
-                            n.above.or.equal.median.score = dplyr::filter(contact[[.]]$first, score >= median(score)) %>% nrow,
-                            n.above.median.score = dplyr::filter(contact[[.]]$first, score > median(score)) %>% nrow,
-                            n.equal.median.score = dplyr::filter(contact[[.]]$first, score == median(score)) %>% nrow,
-                            n.equal.min.score = dplyr::filter(contact[[.]]$first, score == min(score)) %>% nrow,
-                            n.distinct.scores = contact[[.]]$first$score %>% dplyr::n_distinct()))  %>%
-    purrr::reduce(dplyr::bind_rows) %>% tibble::as_tibble() %>%
-    dplyr::mutate(percent.of.scores.equal.to.median = (n.equal.median.score/n.scores)*100,
-                  percent.of.scores.equal.to.min = (n.equal.min.score/n.scores)*100) %>%
-    dplyr::filter(n.above.or.equal.median.score > ((n.scores/2) + (0.01*n.scores)))
-
-  # contactenate
-  txv <- c(txv, txv_contact_scores, txv_contact_binary)
+  # contact %>% names %>%
+  #   purrr::map(~ data.frame(assay = .,
+  #                           n.scores = nrow(contact[[.]]$first),
+  #                           n.above.or.equal.median.score = dplyr::filter(contact[[.]]$first, score >= median(score)) %>% nrow,
+  #                           n.above.median.score = dplyr::filter(contact[[.]]$first, score > median(score)) %>% nrow,
+  #                           n.equal.median.score = dplyr::filter(contact[[.]]$first, score == median(score)) %>% nrow,
+  #                           n.equal.min.score = dplyr::filter(contact[[.]]$first, score == min(score)) %>% nrow,
+  #                           n.distinct.scores = contact[[.]]$first$score %>% dplyr::n_distinct()))  %>%
+  #   purrr::reduce(dplyr::bind_rows) %>% tibble::as_tibble() %>%
+  #   dplyr::mutate(percent.of.scores.equal.to.median = (n.equal.median.score/n.scores)*100,
+  #                 percent.of.scores.equal.to.min = (n.equal.min.score/n.scores)*100) %>%
+  #   dplyr::filter(n.above.or.equal.median.score > ((n.scores/2) + (0.01*n.scores)))
 
   ## ~10% of variant-TSS interactions indicated by the contact data
   ## are further than 2Mb apart and are thus eliminated
@@ -101,11 +103,14 @@ get_txv_level_annotations <- function(txv_master,
       target.gene.prediction.package::promoters,
       keepBcoords = F, keepBmetadata = T) %>%
     # Get DHS bins at those promoter variants
-    target.gene.prediction.package::intersect_DHSs(list(), ., DHSs) %>%
-    dplyr::bind_rows() %>%
-    # Sum specificity + signal bin per promoter variant per enriched cell type
+    intersect_DHSs(list(),
+                   query = .,
+                   DHSs = DHSs,
+                   variant, enst) %>%
+    purrr::reduce(dplyr::bind_rows) %>%
+    # Sum specificity + signal bin per promoter variant per cell type
     dplyr::group_by(variant, enst) %>%
-    dplyr::summarise(dplyr::across(everything(), sum)) %>%
+    dplyr::summarise(dplyr::across(where(is.numeric), sum)) %>%
     dplyr::ungroup()
 
   # intronic variants

@@ -18,10 +18,11 @@ predict_target_genes <- function(trait = NULL,
                                  variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
                                  driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
                                  referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
-                                 variant_to_gene_max_distance = 2e6){
+                                 variant_to_gene_max_distance = 2e6,
+                                 XGBoost = F){
 
   # for testing:
-  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6
+  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; XGBoost = T
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -56,8 +57,7 @@ predict_target_genes <- function(trait = NULL,
   DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
   DHSs_metadata <- readRDS(paste0(referenceDir, "DHSs/DHSs_metadata.rda"))
   DHSs_master <-  DHSs[[1]] %>%
-    dplyr::distinct(chrom, start, end, DHS) %>%
-    dplyr::mutate(DHSID = paste0(".", dplyr::row_number()))
+    dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
 
   # import the TADs data
@@ -87,7 +87,7 @@ predict_target_genes <- function(trait = NULL,
     target.gene.prediction.package::bed_intersect_left(
       variants, .,
       keepBcoords = F,
-      keepBmetadata = T)
+      keepBmetadata = F)
 
   # The transcript-x-variant universe (masterlist of all possible transcript x open variant pairs <2Mb apart)
   txv_master <- open_variants %>%
@@ -103,7 +103,6 @@ predict_target_genes <- function(trait = NULL,
                     variant = variant.variant,
                     pair = paste0(variant.variant, "|", enst.TSS),
                     cs = cs.variant,
-                    DHS = DHS.variant,
                     enst = enst.TSS,
                     symbol = symbol.TSS)
 
@@ -118,8 +117,8 @@ predict_target_genes <- function(trait = NULL,
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
   t <- get_t_level_annotations(DHSs)
 
-  # 3c) DHS-LEVEL INPUTS ====
-  d <- get_d_level_annotations(open_variants)
+  # # 3c) DHS-LEVEL INPUTS ====
+  # d <- get_d_level_annotations(open_variants)
 
   # 3d) CS-LEVEL INPUTS ====
   c <- get_c_level_annotations(open_variants)
@@ -133,20 +132,24 @@ predict_target_genes <- function(trait = NULL,
 
   # 3f) GENE-X-VARIANT-LEVEL INPUTS ===
   # Summarising across transcripts within a gene
-  gxv <- get_gxv_level_annotations(txv)
+  gxv <- get_gxv_level_annotations(txv,
+                                   open_variants,
+                                   DHSs_master,
+                                   specific_DHSs_closest_specific_genes)
 
   # 3g) TRANSCRIPT-X-CS-LEVEL INPUTS ====
   txc <- get_txc_level_annotations(txv,
                                    open_variants)
 
-  # 3h) TRANSCRIPT-X-DHS-LEVEL INPUTS ====
-  ensts_near_vars <- unique(txv$txv_inv_distance$enst)
-  txd <- get_txd_level_annotations(ensts_near_vars,
-                                   DHSs_master)
+  # # 3h) TRANSCRIPT-X-DHS-LEVEL INPUTS ====
+  # ensts_near_vars <- unique(txv$txv_inv_distance$enst)
+  # txd <- get_txd_level_annotations(ensts_near_vars,
+  #                                  DHSs_master)
 
-  # 3i) GENE-X-DHS-LEVEL INPUTS
-  gxd <- get_gxd_level_annotations(open_variants,
-                                   specific_DHSs_closest_specific_genes)
+  # # 3i) GENE-X-DHS-LEVEL INPUTS
+  # gxd <- get_gxd_level_annotations(open_variants,
+  #                                  DHSs_master,
+  #                                  specific_DHSs_closest_specific_genes)
 
   # 4) ALL INPUTS ======================================================================================================
   # Master variant-transcript matrix list
@@ -154,7 +157,7 @@ predict_target_genes <- function(trait = NULL,
   # -> only variant-transcript combinations within 2Mb are included
   # -> pair ID rownames: variant|enst
   cat("3) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
-  master <- c(v, t, d, c, txv, gxv, txc, txd, gxd) %>%
+  master <- c(v, t, c, txv, gxv, txc) %>%
     purrr::map(~ matricise_by_pair(., txv_master))
   # master %>% write_tibble(out$Annotations)
 
@@ -261,6 +264,7 @@ predict_target_genes <- function(trait = NULL,
   dev.off()
 
   # 7) XGBoost MODEL TRAINING ======================================================================================================
+  if(XGBoost==T){
   # format training set
   full <- scores %>%
     dplyr::mutate(label = (symbol %in% drivers$symbol) %>% as.numeric) %>%
@@ -285,14 +289,15 @@ predict_target_genes <- function(trait = NULL,
   pdf(paste0(out$Base, "xgb_model_feature_importance.pdf"))
   print(xgb1_feature_importance_plot)
   dev.off()
+  }
 
   # 8) SAVE ===
-  save(MA,
-       master,
-       predictions,
-       performance,
-       xgb1,
-       file = paste0(out$Base))
+  # save(MA,
+  #      master,
+  #      predictions,
+  #      performance,
+  #      xgb1,
+  #      file = paste0(out$Base, ".Rdata"))
 
   return(MA)
 }

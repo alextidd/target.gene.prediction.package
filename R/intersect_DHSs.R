@@ -8,28 +8,29 @@
 #'
 #' @return A tibble of intersected columns, with .query and .annotation suffixes
 #' @export
-intersect_DHSs <- function(list,
+intersect_DHSs <- function(l,
                            query,
                            DHSs,
                            ...){
 
   # intersect with query bed
-  list <- DHSs %>%
+  l <- DHSs %>%
     lapply(function(x){
-      int_func(query, x)
+      score_cols <- setdiff(colnames(x), c("chrom", "start", "end", "DHS"))
+      target.gene.prediction.package::bed_intersect_left(
+          bedA = query,
+          bedB = x %>% dplyr::select(-DHS),
+          keepBcoords = F) %>%
+        dplyr::select(-c(chrom:end))%>%
+        # group by query column(s) (unit(s) of the annotation)
+        dplyr::group_by(...) %>%
+        # for overlapping - get max bin to avoid duplicates
+        dplyr::summarise(dplyr::across(score_cols, max)) %>%
+        dplyr::ungroup()
     })
-  names(list) <- paste0("DHSs_", names(list))
-  return(list)
+  names(l) <- paste0("DHSs_", names(l))
+  return(l)
 
-}
-
-# internal generic intersection function
-int_func <- function(query, DHSs){
-  target.gene.prediction.package::bed_intersect_left(
-    query,
-    DHSs %>% dplyr::select(-DHS),
-    keepBcoords = F) %>%
-    dplyr::select(-c(chrom, start, end))
 }
 
 
