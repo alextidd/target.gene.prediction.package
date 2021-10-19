@@ -18,11 +18,11 @@ predict_target_genes <- function(trait = NULL,
                                  variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
                                  driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
                                  referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
-                                 variant_to_gene_max_distance = 2e6,
-                                 XGBoost = F){
+                                 variant_to_gene_max_distance = 2e6){
 
+  scoring = F ; performance = F ; XGBoost = F
   # for testing:
-  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; XGBoost = T
+  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; scoring = T ; performance = T ; XGBoost = T
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -107,7 +107,7 @@ predict_target_genes <- function(trait = NULL,
                     symbol = symbol.TSS)
 
   # 3) ANNOTATING ======================================================================================================
-  cat("3) Annotation enhancer-gene pairs...\n")
+  cat("3) Annotating enhancer-gene pairs...\n")
 
   # 3a) VARIANT-LEVEL INPUTS ====
   v <- get_v_level_annotations(open_variants,
@@ -124,7 +124,8 @@ predict_target_genes <- function(trait = NULL,
   c <- get_c_level_annotations(open_variants)
 
   # 3e) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
-  txv <- get_txv_level_annotations(txv_master,
+  txv <- get_txv_level_annotations(open_variants,
+                                   txv_master,
                                    variant_to_gene_max_distance,
                                    DHSs,
                                    contact,
@@ -179,6 +180,7 @@ predict_target_genes <- function(trait = NULL,
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
 
   # 5) SCORING ======================================================================================================
+  if(scoring == T){
   cat("5) Scoring enhancer-gene pairs...\n")
   # Generating a single score for each enhancer-gene pair, with evidence
   # sum(all non-celltype-specific values, enriched celltype-specific annotations)
@@ -213,8 +215,10 @@ predict_target_genes <- function(trait = NULL,
     dplyr::group_by(cs) %>%
     dplyr::mutate(max = score == max(score)) %>%
     dplyr::select(cs, symbol, score, max, n_evidence, evidence)
+  }
 
   # 6) PERFORMANCE ======================================================================================================
+  if(performance == T){
   # Generate PR curves (model performance metric)
   performance <- scores %>%
     # add drivers
@@ -262,6 +266,7 @@ predict_target_genes <- function(trait = NULL,
     ggplot2::facet_wrap(~prediction_type) +
     ggplot2::coord_flip()
   dev.off()
+  }
 
   # 7) XGBoost MODEL TRAINING ======================================================================================================
   if(XGBoost==T){

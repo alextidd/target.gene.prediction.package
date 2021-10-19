@@ -1,4 +1,5 @@
-get_txv_level_annotations <- function(txv_master,
+get_txv_level_annotations <- function(open_variants,
+                                      txv_master,
                                       variant_to_gene_max_distance,
                                       DHSs,
                                       contact,
