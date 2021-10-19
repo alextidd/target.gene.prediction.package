@@ -15,7 +15,7 @@ predict_target_genes(
  
     referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
   variant_to_gene_max_distance = 2e+06,
-  XGBoost = F
+  min_proportion_of_variants_in_top_DHSs = 0.05
 )
 }
 \arguments{
@@ -32,6 +32,8 @@ predict_target_genes(
 \item{referenceDir}{The directory containing the external, accompanying reference data.}
 
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.}
+
+\item{min_proportion_of_variants_in_top_DHSs}{A threshold propportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).}
 }
 \value{
 A file of variant-gene pair predictions, with associated scores, saved in the given output directory.

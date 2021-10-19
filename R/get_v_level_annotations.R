@@ -1,4 +1,4 @@
-get_v_level_annotations <- function(open_variants,
+get_v_level_annotations <- function(variants,
                                     DHSs,
                                     txv_master){
   cat("Annotating variants...\n")
@@ -7,7 +7,7 @@ get_v_level_annotations <- function(open_variants,
 
   # intersect with DHS binnings
   v <- v %>%
-    intersect_DHSs(query = open_variants,
+    intersect_DHSs(query = variants,
                    DHSs = DHSs,
                    variant)
 

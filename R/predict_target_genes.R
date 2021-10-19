@@ -5,11 +5,11 @@
 #' @param trait Optional. The name of the trait of interest.
 #' @param tissue Optional. The tissue(s) of action for the trait.
 #' @param outDir The output directory in which to save the predictions. Default is "./out".
-#' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variantsFile A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
 #' @param driversFile The file containing a list of trait driver gene symbols.
+#' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
-#'
+#' @param min_proportion_of_variants_in_top_DHSs A threshold propportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
 #' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
 #' @export
 predict_target_genes <- function(trait = NULL,
@@ -18,11 +18,12 @@ predict_target_genes <- function(trait = NULL,
                                  variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
                                  driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
                                  referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
-                                 variant_to_gene_max_distance = 2e6){
+                                 variant_to_gene_max_distance = 2e6,
+                                 min_proportion_of_variants_in_top_DHSs = 0.05){
 
   scoring = F ; performance = F ; XGBoost = F
   # for testing:
-  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; scoring = T ; performance = T ; XGBoost = T
+  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; scoring = T ; performance = T ; XGBoost = T
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -69,7 +70,8 @@ predict_target_genes <- function(trait = NULL,
   enriched <- target.gene.prediction.package::get_enriched(DHSs,
                                                            DHSs_metadata,
                                                            contact_metadata,
-                                                           variants)
+                                                           variants,
+                                                           min_proportion_of_variants_in_top_DHSs)
   cat("Enriched cell type(s): ", enriched$celltypes$mnemonic, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
@@ -89,8 +91,8 @@ predict_target_genes <- function(trait = NULL,
       keepBcoords = F,
       keepBmetadata = F)
 
-  # The transcript-x-variant universe (masterlist of all possible transcript x open variant pairs <2Mb apart)
-  txv_master <- open_variants %>%
+  # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs <2Mb apart)
+  txv_master <- variants %>%
     valr::bed_slop(both = variant_to_gene_max_distance,
                    genome = target.gene.prediction.package::ChrSizes,
                    trim = T) %>%
@@ -110,47 +112,33 @@ predict_target_genes <- function(trait = NULL,
   cat("3) Annotating enhancer-gene pairs...\n")
 
   # 3a) VARIANT-LEVEL INPUTS ====
-  v <- get_v_level_annotations(open_variants,
+  v <- get_v_level_annotations(variants,
                                DHSs,
                                txv_master)
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
   t <- get_t_level_annotations(DHSs)
 
-  # # 3c) DHS-LEVEL INPUTS ====
-  # d <- get_d_level_annotations(open_variants)
+  # 3c) CS-LEVEL INPUTS ====
+  c <- get_c_level_annotations(variants)
 
-  # 3d) CS-LEVEL INPUTS ====
-  c <- get_c_level_annotations(open_variants)
-
-  # 3e) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
-  txv <- get_txv_level_annotations(open_variants,
+  # 3d) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
+  txv <- get_txv_level_annotations(variants,
                                    txv_master,
                                    variant_to_gene_max_distance,
                                    DHSs,
                                    contact,
                                    TADs)
 
-  # 3f) GENE-X-VARIANT-LEVEL INPUTS ===
-  # Summarising across transcripts within a gene
+  # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
   gxv <- get_gxv_level_annotations(txv,
-                                   open_variants,
+                                   variants,
                                    DHSs_master,
                                    specific_DHSs_closest_specific_genes)
 
-  # 3g) TRANSCRIPT-X-CS-LEVEL INPUTS ====
+  # 3f) TRANSCRIPT-X-CS-LEVEL INPUTS ====
   txc <- get_txc_level_annotations(txv,
-                                   open_variants)
-
-  # # 3h) TRANSCRIPT-X-DHS-LEVEL INPUTS ====
-  # ensts_near_vars <- unique(txv$txv_inv_distance$enst)
-  # txd <- get_txd_level_annotations(ensts_near_vars,
-  #                                  DHSs_master)
-
-  # # 3i) GENE-X-DHS-LEVEL INPUTS
-  # gxd <- get_gxd_level_annotations(open_variants,
-  #                                  DHSs_master,
-  #                                  specific_DHSs_closest_specific_genes)
+                                   variants)
 
   # 4) ALL INPUTS ======================================================================================================
   # Master variant-transcript matrix list

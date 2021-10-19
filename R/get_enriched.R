@@ -2,6 +2,7 @@ get_enriched <- function(DHSs,
                          DHSs_metadata,
                          contact_metadata,
                          variants,
+                         min_proportion_of_variants_in_top_DHSs,
                          estimate_cutoff = 2,
                          p.value_cutoff = 0.05){
 
@@ -12,10 +13,12 @@ get_enriched <- function(DHSs,
                   -c(chrom:DHS)) %>%
     dplyr::filter(decile == 1)
 
-  counts <- target.gene.prediction.package::bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
+  # threshold of % of CCVs in top DHSs
+  thresholded_counts <- target.gene.prediction.package::bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
     dplyr::group_by(annotation) %>%
     dplyr::count(name = "n_intersections") %>%
-    dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant))
+    dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant)) %>%
+    dplyr::filter(n_intersections/n_variants > min_proportion_of_variants_in_top_DHSs)
 
   enriched <- list()
   enriched[["celltypes"]] <- target.gene.prediction.package::bed_fisher_grouped(
@@ -27,7 +30,8 @@ get_enriched <- function(DHSs,
       estimate > estimate_cutoff,
       p.value < p.value_cutoff
     ) %>%
-    dplyr::left_join(counts) %>%
+    # threshold of % of CCVs in top DHSs
+    dplyr::filter(annotation %in% thresholded_counts$annotation) %>%
     # Extract enriched cell types
     dplyr::pull(annotation) %>%
     {dplyr::filter(DHSs_metadata, mnemonic %in% .)}

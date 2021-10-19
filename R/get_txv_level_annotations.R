@@ -1,4 +1,4 @@
-get_txv_level_annotations <- function(open_variants,
+get_txv_level_annotations <- function(variants,
                                       txv_master,
                                       variant_to_gene_max_distance,
                                       DHSs,
@@ -39,7 +39,7 @@ get_txv_level_annotations <- function(open_variants,
     # Intersect with the contact data
     purrr::map(~ intersect_BEDPE(
       # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
-      SNPend = open_variants %>% dplyr::mutate(start = end),
+      SNPend = variants %>% dplyr::mutate(start = end),
       TSSend = target.gene.prediction.package::TSSs,
       bedpe = .) %>%
         tidyr::separate(InteractionID, into = c("celltype", "assay"), sep = "\\_", remove = F, extra = "drop") %>%
@@ -97,7 +97,7 @@ get_txv_level_annotations <- function(open_variants,
   ## are further than 2Mb apart and are thus eliminated
 
   # get variants at promoters - score by sum of signal and specificity percelltype at the DHS (~promoter activity)
-  txv$promoter <- open_variants %>%
+  txv$promoter <- variants %>%
     dplyr::select(chrom:variant) %>%
     # Get variants within promoter regions
     target.gene.prediction.package::bed_intersect_left(
@@ -115,7 +115,7 @@ get_txv_level_annotations <- function(open_variants,
     dplyr::ungroup()
 
   # intronic variants
-  txv$intron <- open_variants %>%
+  txv$intron <- variants %>%
     # Get variants within introns
     target.gene.prediction.package::bed_intersect_left(
       target.gene.prediction.package::introns, .,
@@ -125,7 +125,7 @@ get_txv_level_annotations <- function(open_variants,
                      value = 1)
 
   # exonic (coding) variants
-  txv$exon <- open_variants %>%
+  txv$exon <- variants %>%
     # Get variants within introns
     target.gene.prediction.package::bed_intersect_left(
       target.gene.prediction.package::exons, .,
@@ -137,7 +137,7 @@ get_txv_level_annotations <- function(open_variants,
   # TADs
   txv$TADs <- dplyr::full_join(
     target.gene.prediction.package::bed_intersect_left(
-      open_variants, TADs, keepBcoords = F) %>%
+      variants, TADs, keepBcoords = F) %>%
       dplyr::select(variant, TAD),
     target.gene.prediction.package::bed_intersect_left(
       target.gene.prediction.package::TSSs, TADs, keepBcoords = F) %>%

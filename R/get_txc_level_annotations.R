@@ -1,10 +1,10 @@
 get_txc_level_annotations <- function(txv,
-                                      open_variants) {
+                                      variants) {
   cat("Annotating transcript x credible set pairs...\n")
 
   # multicontact statistics within each gene-x-cs-x-experiment combination
   multicontact <- txv[greplany("contact", names(txv))] %>%
-    purrr::map(~ dplyr::left_join(., open_variants %>% dplyr::select(variant, cs)) %>%
+    purrr::map(~ dplyr::left_join(., variants %>% dplyr::select(variant, cs)) %>%
                  dplyr::group_by(cs, enst))
 
   # count number of loops between gene and CS
