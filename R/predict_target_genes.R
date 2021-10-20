@@ -30,7 +30,6 @@ predict_target_genes <- function(trait = NULL,
   # library(devtools) ; load_all() ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
   # outDir = "out/BC_all_cells/" ; do_all_cells = T
 
-
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
 
