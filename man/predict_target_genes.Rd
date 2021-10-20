@@ -6,7 +6,7 @@
 \usage{
 predict_target_genes(
   trait = NULL,
-  tissue = NULL,
+  tissue_of_interest = NULL,
   outDir = "out",
  
     variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
@@ -25,7 +25,7 @@ predict_target_genes(
 \arguments{
 \item{trait}{Optional. The name of the trait of interest.}
 
-\item{tissue}{Optional. The tissue(s) of action for the trait.}
+\item{tissue_of_interest}{Optional. The tissue(s) of interest for the trait.}
 
 \item{outDir}{The output directory in which to save the predictions. Default is "./out".}
 

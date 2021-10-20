@@ -3,7 +3,7 @@
 #' The master, user-facing function of this package.
 #'
 #' @param trait Optional. The name of the trait of interest.
-#' @param tissue Optional. The tissue(s) of action for the trait.
+#' @param tissue_of_interest Optional. The tissue(s) of interest for the trait.
 #' @param outDir The output directory in which to save the predictions. Default is "./out".
 #' @param variantsFile A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
 #' @param driversFile The file containing a list of trait driver gene symbols.
@@ -14,7 +14,7 @@
 #' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
 #' @export
 predict_target_genes <- function(trait = NULL,
-                                 tissue = NULL,
+                                 tissue_of_interest = NULL,
                                  outDir = "out",
                                  variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
                                  driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
@@ -27,7 +27,7 @@ predict_target_genes <- function(trait = NULL,
                                  do_XGBoost = F){
 
   # for testing:
-  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
+  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
   # outDir = "out/BC_all_cells/" ; do_all_cells = T
 
   # silence "no visible binding" NOTE for data variables in check()
@@ -75,14 +75,12 @@ predict_target_genes <- function(trait = NULL,
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
 
-  enriched <- target.gene.prediction.package::get_enriched(DHSs,
-                                                           DHSs_metadata,
-                                                           contact_metadata,
-                                                           variants,
-                                                           min_proportion_of_variants_in_top_DHSs,
-                                                           tissue)
-  cat("Enriched cell type(s): ", enriched$celltypes$mnemonic, "\n")
-  cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
+  enriched <- get_enriched(DHSs,
+                           DHSs_metadata,
+                           contact_metadata,
+                           variants,
+                           min_proportion_of_variants_in_top_DHSs,
+                           tissue_of_interest)
 
   # Subset annotations to those in enriched tissues, or consider all cell types (do_all_cells argument, default = F)
   if(do_all_cells){
