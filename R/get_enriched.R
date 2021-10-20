@@ -16,12 +16,12 @@ get_enriched <- function(DHSs,
   all_metadata <- DHSs_metadata %>% dplyr::mutate(object = "DHSs") %>%
     dplyr::bind_rows(contact_metadata %>% dplyr::mutate(object = "contact"))
 
-  if(!is.null(tissue)){
+  if(!is.null(tissue_of_interest)){
     # User-provided tissue
-    if(tissue %ni% all_metadata$tissue){stop("Provided tissue '", tissue, "' not represented in the available data. Must be one of...\n",
+    if(tissue_of_interest %ni% all_metadata$tissue){stop("Provided tissue of interest '", tissue_of_interest, "' not represented in the available data. Must be one of...\n",
                                             paste(unique(all_metadata$tissue), collapse = ", "))}
 
-    cat("Treating user-provided tissue '", tissue, "' as enriched tissue.\n")
+    cat("Treating user-provided tissue of interest '", tissue_of_interest, "' as enriched tissue.\n")
     enriched[["tissues"]] <- all_metadata %>%
       dplyr::filter(tissue == tissue_of_interest)
 

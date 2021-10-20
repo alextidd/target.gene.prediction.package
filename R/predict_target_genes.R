@@ -74,7 +74,6 @@ predict_target_genes <- function(trait = NULL,
 
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
-
   enriched <- get_enriched(DHSs,
                            DHSs_metadata,
                            contact_metadata,
