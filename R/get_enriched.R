@@ -5,7 +5,7 @@ get_enriched <- function(DHSs,
                          min_proportion_of_variants_in_top_DHSs,
                          estimate_cutoff = 2,
                          p.value_cutoff = 0.05,
-                         TISSUE){
+                         tissue){
 
   # for testing:
   # estimate_cutoff = 2 ; p.value_cutoff = 0.05
@@ -16,12 +16,12 @@ get_enriched <- function(DHSs,
   all_metadata <- DHSs_metadata %>% dplyr::mutate(object = "DHSs") %>%
     dplyr::bind_rows(contact_metadata %>% dplyr::mutate(object = "contact"))
 
-  if(!is.null(TISSUE)){
+  if(!is.null(tissue)){
     # User-provided tissue
-    if(TISSUE %ni% all_metadata$tissue){stop("Provided tissue '", TISSUE, "' not represented in the available data. Must be one of...\n",
+    if(tissue %ni% all_metadata$tissue){stop("Provided tissue '", tissue, "' not represented in the available data. Must be one of...\n",
                                             paste(unique(all_metadata$tissue), collapse = ", "))}
 
-    cat("Treating user-provided tissue", TISSUE, "as enriched tissue.\n")
+    cat("Treating user-provided tissue", tissue, "as enriched tissue.\n")
      enriched[["tissues"]] <- all_metadata %>%
       dplyr::filter(tissue %in% enriched$celltypes$tissue)
 

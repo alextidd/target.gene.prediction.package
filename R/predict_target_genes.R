@@ -81,7 +81,7 @@ predict_target_genes <- function(trait = NULL,
                                                            contact_metadata,
                                                            variants,
                                                            min_proportion_of_variants_in_top_DHSs,
-                                                           TISSUE)
+                                                           tissue)
   cat("Enriched cell type(s): ", enriched$celltypes$mnemonic, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
