@@ -1,7 +1,7 @@
 get_gxv_level_annotations <- function(txv,
                                       variants,
                                       DHSs_master,
-                                      enriched_specific_DHSs_closest_specific_genes){
+                                      enriched){
 
   cat("Annotating gene x variant pairs...\n")
 
@@ -23,7 +23,7 @@ get_gxv_level_annotations <- function(txv,
   # variants in specific DHSs x genes in specific DHSs
   gxv$gxv_specific_DHSs_closest_specific_genes <- variants %>%
     target.gene.prediction.package::bed_intersect_left(DHSs_master, keepBcoords = F) %>%
-    dplyr::inner_join(enriched_specific_DHSs_closest_specific_genes) %>%
+    dplyr::inner_join(enriched$specific_DHSs_closest_specific_genes) %>%
     tidyr::pivot_longer(-c(chrom:DHS), names_to = "celltype", values_to = "symbol") %>%
     dplyr::filter(!is.na(symbol)) %>%
     dplyr::select(variant, celltype, symbol) %>%

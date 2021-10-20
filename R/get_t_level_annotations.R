@@ -1,5 +1,5 @@
 get_t_level_annotations <- function(TSSs,
-                                    enriched_DHSs){
+                                    enriched){
   cat("Annotating transcripts...\n")
 
   t <- list()
@@ -7,7 +7,7 @@ get_t_level_annotations <- function(TSSs,
   # intersect with DHSs
   t <- t %>%
     intersect_DHSs(TSSs %>% dplyr::select(chrom:end, enst),
-                   enriched_DHSs,
+                   enriched$DHSs,
                    enst)
 
   # return

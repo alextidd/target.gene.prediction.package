@@ -1,9 +1,11 @@
-get_enriched <- function(DHSs,
-                         DHSs_metadata,
-                         contact_metadata,
-                         variants,
+get_enriched <- function(variants,
+                         DHSs,
+                         specific_DHSs_closest_specific_genes,
+                         contact,
+                         all_metadata,
                          min_proportion_of_variants_in_top_DHSs,
                          tissue_of_interest,
+                         do_all_cells,
                          estimate_cutoff = 2,
                          p.value_cutoff = 0.05){
 
@@ -11,10 +13,6 @@ get_enriched <- function(DHSs,
   # estimate_cutoff = 2 ; p.value_cutoff = 0.05
 
   enriched <- list()
-
-  # metadata for all annotations
-  all_metadata <- DHSs_metadata %>% dplyr::mutate(object = "DHSs") %>%
-    dplyr::bind_rows(contact_metadata %>% dplyr::mutate(object = "contact"))
 
   if(!is.null(tissue_of_interest)){
     # User-provided tissue
@@ -26,7 +24,7 @@ get_enriched <- function(DHSs,
       dplyr::filter(tissue == tissue_of_interest)
 
   } else {
-    # No user-provided tissue, find via enrichment analysis
+    # No user-provided tissue, determine via enrichment analysis
 
     # Fisher enrichment test will be of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
     specific_DHSs <- DHSs$specificity %>%
@@ -55,13 +53,29 @@ get_enriched <- function(DHSs,
       dplyr::filter(annotation %in% thresholded_counts$annotation) %>%
       # Extract enriched cell types
       dplyr::pull(annotation) %>%
-      {dplyr::filter(DHSs_metadata, mnemonic %in% .)}
+      {dplyr::filter(all_metadata, name == ., object == "DHSs")}
     enriched[["tissues"]] <- all_metadata %>%
       dplyr::filter(tissue %in% enriched$celltypes$tissue)
 
-    cat("Enriched cell type(s): ", enriched$celltypes$mnemonic, "\n")
+    cat("Enriched cell type(s): ", enriched$celltypes$name, "\n")
   }
   cat("Enriched tissue(s):", unique(enriched$tissues$tissue), "\n")
+
+
+  # Subset annotations to those in enriched tissues, or consider all cell types (do_all_cells argument, default = F)
+  if(do_all_cells){
+    cat("Applying annotations in all cell types...\n")
+    enriched$DHSs <- DHSs
+    enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes
+    enriched$contact <- contact
+  } else {
+    cat("Applying annotations in enriched cell type(s) only...\n")
+    enriched$DHSs <- DHSs %>%
+      purrr::map(~ dplyr::select(., chrom:DHS, dplyr::any_of(enriched$tissues$name)))
+    enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
+      dplyr::select(DHS, dplyr::any_of(enriched$tissues$name))
+    enriched$contact <- contact[names(contact) %in% enriched$tissues$name]
+  }
 
   return(enriched)
 }

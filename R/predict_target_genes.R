@@ -29,6 +29,7 @@ predict_target_genes <- function(trait = NULL,
   # for testing:
   # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
   # outDir = "out/BC_all_cells/" ; do_all_cells = T
+  # MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", tissue_of_interest = "breast", do_scoring = T, do_performance = T, do_XGBoost = T)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -60,7 +61,7 @@ predict_target_genes <- function(trait = NULL,
   contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
   contact_metadata <- readRDS(paste0(referenceDir, "contact/contact_metadata.rda"))
 
-  # import the DHSs data
+  # import the DHS binning data
   cat("Importing DHS binning data...\n")
   DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
   DHSs_metadata <- readRDS(paste0(referenceDir, "DHSs/DHSs_metadata.rda"))
@@ -72,29 +73,20 @@ predict_target_genes <- function(trait = NULL,
   cat("Importing TAD data...\n")
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
 
+  # metadata for all annotations
+  all_metadata <- DHSs_metadata %>% dplyr::mutate(object = "DHSs") %>%
+    dplyr::bind_rows(contact_metadata %>% dplyr::mutate(object = "contact"))
+
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
-  enriched <- get_enriched(DHSs,
-                           DHSs_metadata,
-                           contact_metadata,
-                           variants,
+  enriched <- get_enriched(variants,
+                           DHSs,
+                           specific_DHSs_closest_specific_genes,
+                           contact,
+                           all_metadata,
                            min_proportion_of_variants_in_top_DHSs,
-                           tissue_of_interest)
-
-  # Subset annotations to those in enriched tissues, or consider all cell types (do_all_cells argument, default = F)
-  if(do_all_cells){
-    cat("Considering annotations in all cell types...\n")
-    enriched_DHSs <- DHSs
-    enriched_specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes
-    enriched_contact <- contact
-  } else {
-    cat("Considering annotations in enriched cell type(s) only...\n")
-    enriched_DHSs <- DHSs %>%
-      lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
-    enriched_specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
-      dplyr::select(DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
-    enriched_contact <- contact[enriched$tissues$list_element[!is.na(enriched$tissues$list_element)]]
-  }
+                           tissue_of_interest,
+                           do_all_cells)
 
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
@@ -127,12 +119,12 @@ predict_target_genes <- function(trait = NULL,
 
   # 3a) VARIANT-LEVEL INPUTS ====
   v <- get_v_level_annotations(variants,
-                               enriched_DHSs,
+                               enriched,
                                txv_master)
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
   t <- get_t_level_annotations(TSSs,
-                               enriched_DHSs)
+                               enriched)
 
   # 3c) CS-LEVEL INPUTS ====
   c <- get_c_level_annotations(variants)
@@ -141,15 +133,14 @@ predict_target_genes <- function(trait = NULL,
   txv <- get_txv_level_annotations(variants,
                                    txv_master,
                                    variant_to_gene_max_distance,
-                                   enriched_DHSs,
-                                   enriched_contact,
+                                   enriched,
                                    TADs)
 
   # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
   gxv <- get_gxv_level_annotations(txv,
                                    variants,
                                    DHSs_master,
-                                   enriched_specific_DHSs_closest_specific_genes)
+                                   enriched)
 
   # 3f) TRANSCRIPT-X-CS-LEVEL INPUTS ====
   txc <- get_txc_level_annotations(txv,
@@ -166,16 +157,15 @@ predict_target_genes <- function(trait = NULL,
   # master %>% write_tibble(out$Annotations)
 
   # MultiAssayExperiment
-  sample_list <- readRDS(paste0(referenceDir, "sample_list.rda"))
   # colData
   colData <- master %>%
     lapply(colnames) %>%
     unlist %>%
     as.data.frame %>%
     dplyr::distinct() %>%
-    dplyr::rename("X" = ".") %>%
-    dplyr::left_join(sample_list) %>%
-    tibble::column_to_rownames("X")
+    dplyr::rename(name = ".") %>%
+    dplyr::left_join(all_metadata %>% dplyr::distinct(name, tissue)) %>%
+    tibble::column_to_rownames("name")
 
   # celltype-specific annotations have as many columns as there are annotated celltypes
   # non-celltype-specific annotations have one `value` column, which applies across all celltypes
@@ -185,7 +175,7 @@ predict_target_genes <- function(trait = NULL,
   # 5) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
-  # Generating a single score for each enhancer-gene pair, with evidence
+  # Generating a single score for each variant-transcript pair, with evidence
   # sum(all non-celltype-specific values, enriched celltype-specific annotations)
   scores <- names(master) %>%
     # create comma-concatenated list of non-zero annotations contributing to the scores of each pair
@@ -215,14 +205,19 @@ predict_target_genes <- function(trait = NULL,
 
   # predictions to save (max gene per CS)
   predictions <- scores %>%
-    dplyr::group_by(cs) %>%
+    # filter to max score per CS-gene pair
+    dplyr::group_by(cs, symbol) %>%
     dplyr::filter(score == max(score)) %>%
-    dplyr::select(cs, symbol, score, n_evidence, evidence) %>%
+    # annotate max gene per CS
+    dplyr::group_by(cs) %>%
+    dplyr::mutate(max = score == max(score)) %>%
+    # order
+    dplyr::select(cs, symbol, score, max) %>%
     dplyr::arrange(-score)
 
   # write tables
-  write.table(scores, file = out$Annotations)
-  write.table(predictions, file = out$Predictions)
+  write_tibble(scores, filename = out$Annotations)
+  write_tibble(predictions, filename = out$Predictions)
   }
 
   # 6) PERFORMANCE ======================================================================================================

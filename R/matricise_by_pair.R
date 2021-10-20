@@ -5,6 +5,8 @@ matricise_by_pair <- function(df,
     dplyr::right_join(txv_master) %>%
     dplyr::distinct(dplyr::across(c("pair", setdiff(colnames(df), c("DHS",names(txv_master)))))) %>%
     dplyr::mutate_if(is.numeric, tidyr::replace_na, replace = 0) %>%
+    # MA needs all rows in the same order
+    dplyr::arrange(pair) %>%
     tibble::column_to_rownames("pair") %>%
     as.matrix()
 

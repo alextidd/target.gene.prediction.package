@@ -1,8 +1,7 @@
 get_txv_level_annotations <- function(variants,
                                       txv_master,
                                       variant_to_gene_max_distance,
-                                      enriched_DHSs,
-                                      enriched_contact,
+                                      enriched,
                                       TADs) {
   cat("Annotating transcript x variant pairs...\n")
 
@@ -35,7 +34,7 @@ get_txv_level_annotations <- function(variants,
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  txv_contact_scores <- enriched_contact %>%
+  txv_contact_scores <- enriched$contact %>%
     # Intersect with the contact data
     purrr::map(~ intersect_BEDPE(
       # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
@@ -47,7 +46,8 @@ get_txv_level_annotations <- function(variants,
                          InteractionID,
                          value = score,
                          celltype,
-                         assay = paste0("contact_", assay))
+                         name = paste(celltype, assay, sep = "_"),
+                         assay = paste("contact", assay, sep = "_"))
       ) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     # Make sure all interactions are within 2Mb - hard filter, ignore everything further
@@ -57,7 +57,7 @@ get_txv_level_annotations <- function(variants,
     # Widen
     purrr::map(~ tidyr::pivot_wider(.,
                                     id_cols = c(variant, enst),
-                                    names_from = celltype,
+                                    names_from = name,
                                     values_from = value))
   txv <- c(txv, txv_contact_scores)
 
@@ -106,7 +106,7 @@ get_txv_level_annotations <- function(variants,
     # Get DHS bins at those promoter variants
     intersect_DHSs(list(),
                    query = .,
-                   DHSs = enriched_DHSs,
+                   DHSs = enriched$DHSs,
                    variant, enst) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     # Sum specificity + signal bin per promoter variant per cell type
