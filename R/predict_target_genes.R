@@ -10,6 +10,7 @@
 #' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
 #' @param min_proportion_of_variants_in_top_DHSs A threshold propportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
+#' @param do_all_cells If TRUE, the package will consider annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
 #' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
 #' @export
 predict_target_genes <- function(trait = NULL,
@@ -19,11 +20,16 @@ predict_target_genes <- function(trait = NULL,
                                  driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
                                  referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
                                  variant_to_gene_max_distance = 2e6,
-                                 min_proportion_of_variants_in_top_DHSs = 0.05){
+                                 min_proportion_of_variants_in_top_DHSs = 0.05,
+                                 do_all_cells = F,
+                                 do_scoring = F,
+                                 do_performance = F,
+                                 do_XGBoost = F){
 
-  scoring = F ; performance = F ; XGBoost = F
   # for testing:
-  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; scoring = T ; performance = T ; XGBoost = T
+  # library(devtools) ; load_all() ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
+  # outDir = "out/BC_all_cells/" ; do_all_cells = T
+
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -51,17 +57,20 @@ predict_target_genes <- function(trait = NULL,
     target.gene.prediction.package::check_driver_symbols(., driversFile)
 
   # import the contact data
+  cat("Importing contact data...\n")
   contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
   contact_metadata <- readRDS(paste0(referenceDir, "contact/contact_metadata.rda"))
 
   # import the DHSs data
+  cat("Importing DHS binning data...\n")
   DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
   DHSs_metadata <- readRDS(paste0(referenceDir, "DHSs/DHSs_metadata.rda"))
-  DHSs_master <-  DHSs[[1]] %>%
+  DHSs_master <- DHSs[[1]] %>%
     dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
 
   # import the TADs data
+  cat("Importing TAD data...\n")
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
 
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
@@ -71,16 +80,25 @@ predict_target_genes <- function(trait = NULL,
                                                            DHSs_metadata,
                                                            contact_metadata,
                                                            variants,
-                                                           min_proportion_of_variants_in_top_DHSs)
+                                                           min_proportion_of_variants_in_top_DHSs,
+                                                           TISSUE)
   cat("Enriched cell type(s): ", enriched$celltypes$mnemonic, "\n")
   cat("Enriched tissue(s):", unique(enriched$celltypes$tissue), "\n")
 
-  # Subset annotations to those in enriched tissues (## TODO: take out?)
-  enriched$DHSs <- DHSs %>%
-    lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
-  enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
-    dplyr::select(DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
-  enriched$contact <- contact[enriched$tissues$list_element[!is.na(enriched$tissues$list_element)]]
+  # Subset annotations to those in enriched tissues, or consider all cell types (do_all_cells argument, default = F)
+  if(do_all_cells){
+    cat("Considering annotations in all cell types...\n")
+    enriched_DHSs <- DHSs
+    enriched_specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes
+    enriched_contact <- contact
+  } else {
+    cat("Considering annotations in enriched cell type(s) only...\n")
+    enriched_DHSs <- DHSs %>%
+      lapply(dplyr::select, chrom:DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
+    enriched_specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
+      dplyr::select(DHS, dplyr::contains(enriched$tissues$mnemonic[!is.na(enriched$tissues$mnemonic)]))
+    enriched_contact <- contact[enriched$tissues$list_element[!is.na(enriched$tissues$list_element)]]
+  }
 
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
@@ -113,11 +131,12 @@ predict_target_genes <- function(trait = NULL,
 
   # 3a) VARIANT-LEVEL INPUTS ====
   v <- get_v_level_annotations(variants,
-                               DHSs,
+                               enriched_DHSs,
                                txv_master)
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
-  t <- get_t_level_annotations(DHSs)
+  t <- get_t_level_annotations(TSSs,
+                               enriched_DHSs)
 
   # 3c) CS-LEVEL INPUTS ====
   c <- get_c_level_annotations(variants)
@@ -126,15 +145,15 @@ predict_target_genes <- function(trait = NULL,
   txv <- get_txv_level_annotations(variants,
                                    txv_master,
                                    variant_to_gene_max_distance,
-                                   DHSs,
-                                   contact,
+                                   enriched_DHSs,
+                                   enriched_contact,
                                    TADs)
 
   # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
   gxv <- get_gxv_level_annotations(txv,
                                    variants,
                                    DHSs_master,
-                                   specific_DHSs_closest_specific_genes)
+                                   enriched_specific_DHSs_closest_specific_genes)
 
   # 3f) TRANSCRIPT-X-CS-LEVEL INPUTS ====
   txc <- get_txc_level_annotations(txv,
@@ -168,7 +187,7 @@ predict_target_genes <- function(trait = NULL,
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
 
   # 5) SCORING ======================================================================================================
-  if(scoring == T){
+  if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
   # Generating a single score for each enhancer-gene pair, with evidence
   # sum(all non-celltype-specific values, enriched celltype-specific annotations)
@@ -198,15 +217,20 @@ predict_target_genes <- function(trait = NULL,
     # select columns
     dplyr::select(cs, symbol, score, n_evidence, evidence, where(is.numeric))
 
-  # predictions to save
+  # predictions to save (max gene per CS)
   predictions <- scores %>%
     dplyr::group_by(cs) %>%
-    dplyr::mutate(max = score == max(score)) %>%
-    dplyr::select(cs, symbol, score, max, n_evidence, evidence)
+    dplyr::filter(score == max(score)) %>%
+    dplyr::select(cs, symbol, score, n_evidence, evidence) %>%
+    dplyr::arrange(-score)
+
+  # write tables
+  write.table(scores, file = out$Annotations)
+  write.table(predictions, file = out$Predictions)
   }
 
   # 6) PERFORMANCE ======================================================================================================
-  if(performance == T){
+  if(do_performance){
   # Generate PR curves (model performance metric)
   performance <- scores %>%
     # add drivers
@@ -216,7 +240,7 @@ predict_target_genes <- function(trait = NULL,
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
-  pdf(out$PR, height = 10, onefile = T)
+  pdf(out$PR, height = 10, width = 20, onefile = T)
   performance$PR %>%
     dplyr::filter(prediction_method == "score") %>%
     target.gene.prediction.package::plot_PR(colour = prediction_type)
@@ -232,8 +256,13 @@ predict_target_genes <- function(trait = NULL,
   performance$PR %>%
     dplyr::filter(AUC == max(AUC)) %>%
     plot_PR(colour = prediction_method) +
+    # ggplot2::geom_label(data = . %>%
+    #                      dplyr::ungroup() %>%
+    #                      dplyr::filter(AUC == max(AUC),
+    #                                    prediction_type == "max",
+    #                                    .threshold %ni% c(Inf, 0)),
+    #                    ggplot2::aes(label = prediction_method)) +
     ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")"))
-    #ggplot2::theme(legend.position = "none")
   performance$PR %>%
     dplyr::select(prediction_method, prediction_type, AUC) %>%
     dplyr::filter(prediction_type == "score") %>%
@@ -257,7 +286,7 @@ predict_target_genes <- function(trait = NULL,
   }
 
   # 7) XGBoost MODEL TRAINING ======================================================================================================
-  if(XGBoost==T){
+  if(do_XGBoost){
   # format training set
   full <- scores %>%
     dplyr::mutate(label = (symbol %in% drivers$symbol) %>% as.numeric) %>%
@@ -285,8 +314,7 @@ predict_target_genes <- function(trait = NULL,
   }
 
   # 8) SAVE ===
-  # save(MA,
-  #      master,
+  # save(master,
   #      predictions,
   #      performance,
   #      xgb1,

@@ -15,7 +15,11 @@ predict_target_genes(
  
     referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
   variant_to_gene_max_distance = 2e+06,
-  min_proportion_of_variants_in_top_DHSs = 0.05
+  min_proportion_of_variants_in_top_DHSs = 0.05,
+  do_all_cells = F,
+  do_scoring = F,
+  do_performance = F,
+  do_XGBoost = F
 )
 }
 \arguments{
@@ -34,6 +38,8 @@ predict_target_genes(
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.}
 
 \item{min_proportion_of_variants_in_top_DHSs}{A threshold propportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).}
+
+\item{do_all_cells}{If TRUE, the package will consider annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
 }
 \value{
 A file of variant-gene pair predictions, with associated scores, saved in the given output directory.

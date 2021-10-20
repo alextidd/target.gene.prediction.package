@@ -1,5 +1,5 @@
 get_v_level_annotations <- function(variants,
-                                    DHSs,
+                                    enriched_DHSs,
                                     txv_master){
   cat("Annotating variants...\n")
 
@@ -8,7 +8,7 @@ get_v_level_annotations <- function(variants,
   # intersect with DHS binnings
   v <- v %>%
     intersect_DHSs(query = variants,
-                   DHSs = DHSs,
+                   DHSs = enriched_DHSs,
                    variant)
 
   # calculate n genes near each variant

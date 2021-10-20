@@ -1,8 +1,8 @@
 get_txv_level_annotations <- function(variants,
                                       txv_master,
                                       variant_to_gene_max_distance,
-                                      DHSs,
-                                      contact,
+                                      enriched_DHSs,
+                                      enriched_contact,
                                       TADs) {
   cat("Annotating transcript x variant pairs...\n")
 
@@ -35,7 +35,7 @@ get_txv_level_annotations <- function(variants,
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  txv_contact_scores <- contact %>%
+  txv_contact_scores <- enriched_contact %>%
     # Intersect with the contact data
     purrr::map(~ intersect_BEDPE(
       # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
@@ -106,7 +106,7 @@ get_txv_level_annotations <- function(variants,
     # Get DHS bins at those promoter variants
     intersect_DHSs(list(),
                    query = .,
-                   DHSs = DHSs,
+                   DHSs = enriched_DHSs,
                    variant, enst) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     # Sum specificity + signal bin per promoter variant per cell type
