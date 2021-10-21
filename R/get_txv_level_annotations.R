@@ -96,8 +96,19 @@ get_txv_level_annotations <- function(variants,
   ## ~10% of variant-TSS interactions indicated by the contact data
   ## are further than 2Mb apart and are thus eliminated
 
-  # get variants at promoters - score by sum of signal and specificity percelltype at the DHS (~promoter activity)
+  # get variants at promoters
   txv$promoter <- variants %>%
+    dplyr::select(chrom:variant) %>%
+    # Get variants within promoter regions
+    target.gene.prediction.package::bed_intersect_left(
+      target.gene.prediction.package::promoters,
+      keepBcoords = F, keepBmetadata = T) %>%
+    dplyr::transmute(variant,
+                     enst,
+                     value = 1)
+
+  # get variants at promoters - score by sum of signal and specificity percelltype at the DHS (~promoter activity)
+  txv$promoter_DHS_bins_sum <- variants %>%
     dplyr::select(chrom:variant) %>%
     # Get variants within promoter regions
     target.gene.prediction.package::bed_intersect_left(

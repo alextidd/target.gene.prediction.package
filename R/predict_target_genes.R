@@ -69,6 +69,11 @@ predict_target_genes <- function(trait = NULL,
     dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
 
+  # import the expression data
+  cat("Importing RNA-seq expression data...\n")
+  expression <- read.delim(paste0(referenceDir, "expression.tsv"))
+  expression_metadata <- DHSs_metadata
+
   # import the TADs data
   cat("Importing TAD data...\n")
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
@@ -83,6 +88,7 @@ predict_target_genes <- function(trait = NULL,
                            DHSs,
                            specific_DHSs_closest_specific_genes,
                            contact,
+                           expression,
                            all_metadata,
                            min_proportion_of_variants_in_top_DHSs,
                            tissue_of_interest,
@@ -112,7 +118,8 @@ predict_target_genes <- function(trait = NULL,
                     pair = paste0(variant.variant, "|", enst.TSS),
                     cs = cs.variant,
                     enst = enst.TSS,
-                    symbol = symbol.TSS)
+                    symbol = symbol.TSS,
+                    ensg = ensg.TSS)
 
   # 3) ANNOTATING ======================================================================================================
   cat("3) Annotating enhancer-gene pairs...\n")
@@ -124,6 +131,10 @@ predict_target_genes <- function(trait = NULL,
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
   t <- get_t_level_annotations(TSSs,
+                               enriched)
+
+  # 3c) GENE-LEVEL INPUTS ===
+  g <- get_g_level_annotations(txv_master,
                                enriched)
 
   # 3c) CS-LEVEL INPUTS ====
@@ -152,7 +163,7 @@ predict_target_genes <- function(trait = NULL,
   # -> only variant-transcript combinations within 2Mb are included
   # -> pair ID rownames: variant|enst
   cat("3) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
-  master <- c(v, t, c, txv, gxv, txc) %>%
+  master <- c(v, t, g, c, txv, gxv, txc) %>%
     purrr::map(~ matricise_by_pair(., txv_master))
   # master %>% write_tibble(out$Annotations)
 

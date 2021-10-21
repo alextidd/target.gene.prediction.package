@@ -2,6 +2,7 @@ get_enriched <- function(variants,
                          DHSs,
                          specific_DHSs_closest_specific_genes,
                          contact,
+                         expression,
                          all_metadata,
                          min_proportion_of_variants_in_top_DHSs,
                          tissue_of_interest,
@@ -56,6 +57,8 @@ get_enriched <- function(variants,
       {dplyr::filter(all_metadata, name == ., object == "DHSs")}
     enriched[["tissues"]] <- all_metadata %>%
       dplyr::filter(tissue %in% enriched$celltypes$tissue)
+    # Error message if no cell types were enriched
+    if(nrow(enriched$celltypes)==0){stop("No enriched cell types found!")}
 
     cat("Enriched cell type(s): ", enriched$celltypes$name, "\n")
   }
@@ -68,6 +71,7 @@ get_enriched <- function(variants,
     enriched$DHSs <- DHSs
     enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes
     enriched$contact <- contact
+    enriched$expression <- expression
   } else {
     cat("Applying annotations in enriched cell type(s) only...\n")
     enriched$DHSs <- DHSs %>%
@@ -75,6 +79,7 @@ get_enriched <- function(variants,
     enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
       dplyr::select(DHS, dplyr::any_of(enriched$tissues$name))
     enriched$contact <- contact[names(contact) %in% enriched$tissues$name]
+    enriched$expression <- expression[, colnames(expression) %in% enriched$tissues$name]
   }
 
   return(enriched)

@@ -3,7 +3,7 @@ get_txc_level_annotations <- function(txv,
   cat("Annotating transcript x credible set pairs...\n")
 
   # multicontact statistics within each gene-x-cs-x-experiment combination
-  multicontact <- txv[greplany("contact", names(txv))] %>%
+  multicontact <- txv[grepl("contact", names(txv)) & !grepl("binary", names(txv))] %>%
     purrr::map(~ dplyr::left_join(., variants %>% dplyr::select(variant, cs)) %>%
                  dplyr::group_by(cs, enst))
 
