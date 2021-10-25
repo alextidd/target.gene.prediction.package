@@ -10,6 +10,7 @@
 #' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
 #' @param min_proportion_of_variants_in_top_DHSs A threshold propportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
+#' @param include_all_celltypes_in_the_enriched_tissue If TRUE, the package will consider annotations across all available cell types within the enriched tissue, not just those for the exact enriched cell type.
 #' @param do_all_cells If TRUE, the package will consider annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
 #' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
 #' @export
@@ -21,15 +22,16 @@ predict_target_genes <- function(trait = NULL,
                                  referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
                                  variant_to_gene_max_distance = 2e6,
                                  min_proportion_of_variants_in_top_DHSs = 0.05,
+                                 include_all_celltypes_in_the_enriched_tissue = T,
                                  do_all_cells = F,
                                  do_scoring = F,
                                  do_performance = F,
                                  do_XGBoost = F){
 
   # for testing:
-  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
+  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
   # outDir = "out/BC_all_cells/" ; do_all_cells = T
-  # MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", do_scoring = T, do_performance = T, do_XGBoost = T)
+  # load_all() ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, do_scoring = T, do_performance = T, do_XGBoost = T)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -88,7 +90,8 @@ predict_target_genes <- function(trait = NULL,
                            all_metadata,
                            min_proportion_of_variants_in_top_DHSs,
                            tissue_of_interest,
-                           do_all_cells)
+                           do_all_cells,
+                           include_all_celltypes_in_the_enriched_tissue)
 
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
@@ -178,6 +181,21 @@ predict_target_genes <- function(trait = NULL,
   # non-celltype-specific annotations have one `value` column, which applies across all celltypes
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
+
+  # equation
+  mcf7_MA <- subsetByColData(MA, c("value", "BRST.MCF7.CNCR"))
+  (
+    assay(mcf7_MA, "v_DHSs_signal") +
+    assay(mcf7_MA, "v_DHSs_specificity") +
+    assay(mcf7_MA, "txv_contact_ChIAPET_binary") +
+    assay(mcf7_MA, "txc_n_multicontact_binary_ChIAPET") +
+    assay(mcf7_MA, "gxv_specific_DHSs_closest_specific_genes")
+  ) * (
+    assay(mcf7_MA, "txv_TADs")
+  ) * (
+    assay(mcf7_MA, "g_expression")
+  ) -> mcf7_scores
+  mcf7_scores <- mcf7_scores %>% tibble::as_tibble(rownames = "pair")
 
   # 5) SCORING ======================================================================================================
   if(do_scoring){

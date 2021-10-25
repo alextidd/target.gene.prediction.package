@@ -26,10 +26,9 @@ get_gxv_level_annotations <- function(txv,
   gxv$gxv_specific_DHSs_closest_specific_genes <- variants %>%
     target.gene.prediction.package::bed_intersect_left(DHSs_master, keepBcoords = F) %>%
     dplyr::inner_join(enriched$specific_DHSs_closest_specific_genes) %>%
-    tidyr::pivot_longer(-c(chrom:DHS), names_to = "celltype", values_to = "symbol") %>%
-    dplyr::filter(!is.na(symbol)) %>%
-    dplyr::select(variant, celltype, symbol) %>%
-    dplyr::distinct() %>%
+    tidyr::pivot_longer(-c(chrom:DHS), names_to = "celltype", values_to = "ensg") %>%
+    dplyr::filter(!is.na(ensg)) %>%
+    dplyr::distinct(variant, celltype, ensg) %>%
     dplyr::mutate(value = 1) %>%
     tidyr::pivot_wider(id_cols = -c(celltype, value),
                        names_from = celltype, values_from = value)
