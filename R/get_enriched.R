@@ -29,21 +29,21 @@ get_enriched <- function(variants,
 
     # Fisher enrichment test will be of variants in upper-quartile cell-type-specificic H3K27ac marks in DHSs
     specific_DHSs <- DHSs$specificity %>%
-      tidyr::gather(key = "annotation",
+      tidyr::gather(key = "name",
                     value = "decile",
                     -c(chrom:DHS)) %>%
       dplyr::filter(decile == 1)
 
     # threshold of % of CCVs in top DHSs
     thresholded_counts <- target.gene.prediction.package::bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
-      dplyr::group_by(annotation) %>%
+      dplyr::group_by(name) %>%
       dplyr::count(name = "n_intersections") %>%
       dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant)) %>%
       dplyr::filter(n_intersections/n_variants > min_proportion_of_variants_in_top_DHSs)
 
     enriched[["celltypes"]] <- target.gene.prediction.package::bed_fisher_grouped(
       bedA = specific_DHSs,
-      bedA_groups = "annotation",
+      bedA_groups = "name",
       bedB = variants,
       genome = target.gene.prediction.package::ChrSizes,
       # filter for effect and significance
@@ -51,9 +51,9 @@ get_enriched <- function(variants,
       p.value < p.value_cutoff
     ) %>%
       # threshold of % of CCVs in top DHSs
-      dplyr::filter(annotation %in% thresholded_counts$annotation) %>%
+      dplyr::filter(name %in% thresholded_counts$name) %>%
       # Extract enriched cell types
-      dplyr::pull(annotation) %>%
+      dplyr::pull(name) %>%
       {dplyr::filter(all_metadata, name == ., object == "DHSs")}
     enriched[["tissues"]] <- all_metadata %>%
       dplyr::filter(tissue %in% enriched$celltypes$tissue)
@@ -75,11 +75,13 @@ get_enriched <- function(variants,
   } else {
     cat("Applying annotations in enriched cell type(s) only...\n")
     enriched$DHSs <- DHSs %>%
-      purrr::map(~ dplyr::select(., chrom:DHS, dplyr::any_of(enriched$tissues$name)))
+      purrr::map(~ dplyr::select(., chrom:DHS, dplyr::any_of(enriched$tissues$name[enriched$tissues$object == "DHSs"])))
     enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
-      dplyr::select(DHS, dplyr::any_of(enriched$tissues$name))
-    enriched$contact <- contact[names(contact) %in% enriched$tissues$name]
-    enriched$expression <- expression[, colnames(expression) %in% enriched$tissues$name]
+      dplyr::select(DHS, dplyr::any_of(enriched$tissues$name[enriched$tissues$object == "DHSs"]))
+    enriched$contact <- names(contact) %>% sapply(function(x) {contact[[x]][names(contact[[x]]) %in% enriched$tissues$name[enriched$tissues$object == "contact"]]},
+                                                  simplify = F, USE.NAMES = T)
+    enriched$contact <- enriched$contact[lapply(enriched$contact, length) > 0] # remove empty elements
+    enriched$expression <- expression[, colnames(expression) %in% enriched$tissues$name, drop = F]
   }
 
   return(enriched)

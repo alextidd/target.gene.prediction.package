@@ -35,30 +35,23 @@ get_txv_level_annotations <- function(variants,
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
   txv_contact_scores <- enriched$contact %>%
+    purrr::map(~
     # Intersect with the contact data
-    purrr::map(~ intersect_BEDPE(
+    purrr::map(., ~ intersect_BEDPE(
       # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
       SNPend = variants %>% dplyr::mutate(start = end),
       TSSend = target.gene.prediction.package::TSSs,
       bedpe = .) %>%
-        tidyr::separate(InteractionID, into = c("celltype", "assay"), sep = "\\_", remove = F, extra = "drop") %>%
         dplyr::transmute(variant, enst,
                          InteractionID,
-                         value = score,
-                         celltype,
-                         name = paste(celltype, assay, sep = "_"),
-                         assay = paste("contact", assay, sep = "_"))
+                         value = score) %>%
+        dplyr::inner_join(distance %>% dplyr::select(variant, enst))
       ) %>%
-    purrr::reduce(dplyr::bind_rows) %>%
-    # Make sure all interactions are within 2Mb - hard filter, ignore everything further
-    dplyr::inner_join(distance %>% dplyr::select(variant, enst)) %>%
-    # Split into different contact assays
-    split(f = .$assay) %>%
-    # Widen
-    purrr::map(~ tidyr::pivot_wider(.,
-                                    id_cols = c(variant, enst),
-                                    names_from = name,
-                                    values_from = value))
+      dplyr::bind_rows(.id = "celltype") %>%
+      tidyr::pivot_wider(id_cols = c(variant, enst),
+                         names_from = celltype,
+                         values_from = value))
+  names(txv_contact_scores) <- paste0("contact_", names(txv_contact_scores))
   txv <- c(txv, txv_contact_scores)
 
   # contact binary
@@ -67,13 +60,6 @@ get_txv_level_annotations <- function(variants,
                                                                                       TRUE ~ 1))))
   names(txv_contact_binary) <- paste0(names(txv_contact_binary), "_", "binary")
   txv <- c(txv, txv_contact_binary)
-
-  # contact binary - using top 50% of scores for txv conntactions in each sample
-  txv_contact_binary_top_half <- txv_contact_scores %>%
-    purrr::map(~ dplyr::mutate(., dplyr::across(where(is.numeric), ~ dplyr::case_when(.x > median(.x, na.rm = T) ~ .x,
-                                                                                   TRUE ~ 0))))
-  names(txv_contact_binary_top_half) <- paste0(names(txv_contact_binary), "_", "binary_top_half")
-  txv <- c(txv, txv_contact_binary_top_half)
 
   # Problem to FIX!!! 4 datasets in which the bulk (>70%) of the distribution of scores is equal to the minimum score
   # - colorectal_HiChIP

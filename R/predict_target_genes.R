@@ -29,7 +29,7 @@ predict_target_genes <- function(trait = NULL,
   # for testing:
   # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
   # outDir = "out/BC_all_cells/" ; do_all_cells = T
-  # MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", tissue_of_interest = "breast", do_scoring = T, do_performance = T, do_XGBoost = T)
+  # MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", do_scoring = T, do_performance = T, do_XGBoost = T)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -59,12 +59,10 @@ predict_target_genes <- function(trait = NULL,
   # import the contact data
   cat("Importing contact data...\n")
   contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
-  contact_metadata <- readRDS(paste0(referenceDir, "contact/contact_metadata.rda"))
 
   # import the DHS binning data
   cat("Importing DHS binning data...\n")
   DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
-  DHSs_metadata <- readRDS(paste0(referenceDir, "DHSs/DHSs_metadata.rda"))
   DHSs_master <- DHSs[[1]] %>%
     dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
@@ -72,15 +70,13 @@ predict_target_genes <- function(trait = NULL,
   # import the expression data
   cat("Importing RNA-seq expression data...\n")
   expression <- read.delim(paste0(referenceDir, "expression.tsv"))
-  expression_metadata <- DHSs_metadata
 
   # import the TADs data
   cat("Importing TAD data...\n")
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
 
   # metadata for all annotations
-  all_metadata <- DHSs_metadata %>% dplyr::mutate(object = "DHSs") %>%
-    dplyr::bind_rows(contact_metadata %>% dplyr::mutate(object = "contact"))
+  all_metadata <- read_tibble(paste0(referenceDir, "all_metadata.tsv"), header = T)
 
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Cell type enrichment...\n")
