@@ -20,7 +20,9 @@ predict_target_genes(
   do_all_cells = F,
   do_scoring = F,
   do_performance = F,
-  do_XGBoost = F
+  do_XGBoost = F,
+  contact = NULL,
+  DHSs = NULL
 )
 }
 \arguments{

@@ -26,12 +26,14 @@ predict_target_genes <- function(trait = NULL,
                                  do_all_cells = F,
                                  do_scoring = F,
                                  do_performance = F,
-                                 do_XGBoost = F){
+                                 do_XGBoost = F,
+                                 contact = NULL,
+                                 DHSs = NULL){
 
   # for testing:
   # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
   # outDir = "out/BC_all_cells/" ; do_all_cells = T
-  # load_all() ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, do_scoring = T, do_performance = T, do_XGBoost = T)
+  # library(devtools) ; setwd("/working/lab_georgiat/alexandT/target.gene.prediction.package") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -60,11 +62,11 @@ predict_target_genes <- function(trait = NULL,
 
   # import the contact data
   cat("Importing contact data...\n")
-  contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
+  if(is.null(contact)){contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))}
 
   # import the DHS binning data
   cat("Importing DHS binning data...\n")
-  DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
+  if(is.null(DHSs)){DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))}
   DHSs_master <- DHSs[[1]] %>%
     dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
@@ -182,20 +184,22 @@ predict_target_genes <- function(trait = NULL,
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
 
-  # equation
-  mcf7_MA <- subsetByColData(MA, c("value", "BRST.MCF7.CNCR"))
-  (
-    assay(mcf7_MA, "v_DHSs_signal") +
-    assay(mcf7_MA, "v_DHSs_specificity") +
-    assay(mcf7_MA, "txv_contact_ChIAPET_binary") +
-    assay(mcf7_MA, "txc_n_multicontact_binary_ChIAPET") +
-    assay(mcf7_MA, "gxv_specific_DHSs_closest_specific_genes")
-  ) * (
-    assay(mcf7_MA, "txv_TADs")
-  ) * (
-    assay(mcf7_MA, "g_expression")
-  ) -> mcf7_scores
-  mcf7_scores <- mcf7_scores %>% tibble::as_tibble(rownames = "pair")
+  # # # equation
+  # mcf7_MA <- subsetByColData(MA, c("value", "BRST.MCF7.CNCR"))
+  # (
+  #   assay(mcf7_MA, "v_DHSs_signal") +
+  #   assay(mcf7_MA, "v_DHSs_specificity") +
+  #   assay(mcf7_MA, "txv_contact_ChIAPET_binary") +
+  #   assay(mcf7_MA, "txc_n_multicontact_binary_ChIAPET") +
+  #   assay(mcf7_MA, "gxv_specific_DHSs_closest_specific_genes")
+  # ) * (
+  #   assay(mcf7_MA, "txv_TADs")
+  # ) * (
+  #   assay(mcf7_MA, "g_expression")
+  # ) -> mcf7_scores
+  # mcf7_scores <- mcf7_scores %>% tibble::as_tibble(rownames = "pair") %>%
+  #   dplyr::arrange(-BRST.MCF7.CNCR) %>%
+  #   dplyr::left_join(txv_master)
 
   # 5) SCORING ======================================================================================================
   if(do_scoring){

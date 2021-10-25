@@ -88,7 +88,7 @@ get_enriched <- function(variants,
     enriched$DHSs <- DHSs %>%
       purrr::map(~ dplyr::select(., chrom:DHS, dplyr::any_of(enriched$tissues$name[enriched$tissues$object == "DHSs"])))
     enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
-      dplyr::select(DHS, dplyr::any_of(enriched$tissues$name[enriched$tissues$object == "DHSs"]))
+      dplyr::select(chrom:end, dplyr::any_of(enriched$tissues$name[enriched$tissues$object == "DHSs"]))
     enriched$contact <- names(contact) %>% sapply(function(x) {contact[[x]][names(contact[[x]]) %in% enriched$tissues$name[enriched$tissues$object == "contact"]]},
                                                   simplify = F, USE.NAMES = T)
     enriched$contact <- enriched$contact[lapply(enriched$contact, length) > 0] # remove empty elements
