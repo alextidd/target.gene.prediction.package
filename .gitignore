@@ -4,3 +4,5 @@
 external_data/
 out/
 MEETINGS.txt
+weights_job.sh
+weights_job.R

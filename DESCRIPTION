@@ -24,7 +24,8 @@ Imports:
     utils,
     yardstick,
     xgboost,
-    Ckmeans.1d.dp
+    Ckmeans.1d.dp,
+    MultiAssayExperiment
 Depends:
     R (>= 2.10)
 Suggests: 

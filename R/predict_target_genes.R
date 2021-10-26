@@ -24,21 +24,23 @@ predict_target_genes <- function(trait = NULL,
                                  min_proportion_of_variants_in_top_DHSs = 0.05,
                                  include_all_celltypes_in_the_enriched_tissue = T,
                                  do_all_cells = F,
+                                 do_manual_weighting = F,
                                  do_scoring = F,
                                  do_performance = F,
                                  do_XGBoost = F,
                                  contact = NULL,
                                  DHSs = NULL){
 
-  # for testing:
-  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T
-  # outDir = "out/BC_all_cells/" ; do_all_cells = T
+  # for testing internally:
+  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
+  # for testing externally:
   # library(devtools) ; setwd("/working/lab_georgiat/alexandT/target.gene.prediction.package") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
 
   # SETUP ======================================================================================================
+  if(do_XGBoost){do_scoring <- T}
 
   # define the output
   dir.create(outDir, recursive = T, showWarnings = F)
@@ -184,24 +186,29 @@ predict_target_genes <- function(trait = NULL,
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
 
-  # # # equation
-  # mcf7_MA <- subsetByColData(MA, c("value", "BRST.MCF7.CNCR"))
-  # (
-  #   assay(mcf7_MA, "v_DHSs_signal") +
-  #   assay(mcf7_MA, "v_DHSs_specificity") +
-  #   assay(mcf7_MA, "txv_contact_ChIAPET_binary") +
-  #   assay(mcf7_MA, "txc_n_multicontact_binary_ChIAPET") +
-  #   assay(mcf7_MA, "gxv_specific_DHSs_closest_specific_genes")
-  # ) * (
-  #   assay(mcf7_MA, "txv_TADs")
-  # ) * (
-  #   assay(mcf7_MA, "g_expression")
-  # ) -> mcf7_scores
-  # mcf7_scores <- mcf7_scores %>% tibble::as_tibble(rownames = "pair") %>%
-  #   dplyr::arrange(-BRST.MCF7.CNCR) %>%
-  #   dplyr::left_join(txv_master)
+  # 5) WEIGHTING ======================================================================================================
+  # MANUAL WEIGHTING ===
+  if(do_manual_weighting){
+  celltype_of_interest <- unique(enriched$celltypes$name)
+  if(length(celltype_of_interest) == 1){
+    to_multiply <- c("txv_TADs",
+                     "g_expression")
+    to_add <- c("v_DHSs_signal",
+                "v_DHSs_specificity",
+                "txv_contact_ChIAPET_binary",
+                "txc_n_multicontact_binary_ChIAPET",
+                "gxv_specific_DHSs_closest_specific_genes",
+                "txv_exon")
+    manual_models <- weight_and_score_manually(MA,
+                                               celltype_of_interest,
+                                               txv_master,
+                                               to_add,
+                                               to_multiply)
+    write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))
+  } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
+  }
 
-  # 5) SCORING ======================================================================================================
+  # 6) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
   # Generating a single score for each variant-transcript pair, with evidence
@@ -249,7 +256,7 @@ predict_target_genes <- function(trait = NULL,
   write_tibble(predictions, filename = out$Predictions)
   }
 
-  # 6) PERFORMANCE ======================================================================================================
+  # 7) PERFORMANCE ======================================================================================================
   if(do_performance){
   # Generate PR curves (model performance metric)
   performance <- scores %>%
@@ -305,7 +312,7 @@ predict_target_genes <- function(trait = NULL,
   dev.off()
   }
 
-  # 7) XGBoost MODEL TRAINING ======================================================================================================
+  # 8) XGBoost MODEL TRAINING ======================================================================================================
   if(do_XGBoost){
   # format training set
   full <- scores %>%
@@ -333,7 +340,7 @@ predict_target_genes <- function(trait = NULL,
   dev.off()
   }
 
-  # 8) SAVE ===
+  # 9) SAVE ===
   # save(master,
   #      predictions,
   #      performance,

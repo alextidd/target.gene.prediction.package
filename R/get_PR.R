@@ -73,7 +73,8 @@ get_PR <- function(scores, txv_master, ...){
                        # calculate AUPRC
                        yardstick::pr_auc(driver, prediction) %>%
                        dplyr::select(prediction_method, prediction_type,
-                                     AUC = .estimate))
+                                     AUC = .estimate)) %>%
+    dplyr::ungroup()
 
   return(performance)
 
