@@ -32,7 +32,7 @@ predict_target_genes <- function(trait = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
+  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
   # for testing externally:
   # library(devtools) ; setwd("/working/lab_georgiat/alexandT/target.gene.prediction.package") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
 
@@ -91,6 +91,7 @@ predict_target_genes <- function(trait = NULL,
                            specific_DHSs_closest_specific_genes,
                            contact,
                            expression,
+                           TADs,
                            all_metadata,
                            min_proportion_of_variants_in_top_DHSs,
                            tissue_of_interest,
@@ -148,7 +149,7 @@ predict_target_genes <- function(trait = NULL,
                                    txv_master,
                                    variant_to_gene_max_distance,
                                    enriched,
-                                   TADs)
+                                   TADs) # TODO: fix Rao and remove this, only use enriched TADs
 
   # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
   gxv <- get_gxv_level_annotations(txv,
@@ -191,17 +192,18 @@ predict_target_genes <- function(trait = NULL,
   if(do_manual_weighting){
   celltype_of_interest <- unique(enriched$celltypes$name)
   if(length(celltype_of_interest) == 1){
-    to_multiply <- c("txv_TADs",
-                     "g_expression")
     to_add <- c("v_DHSs_signal",
                 "v_DHSs_specificity",
                 "txv_contact_ChIAPET_binary",
                 "txc_n_multicontact_binary_ChIAPET",
                 "gxv_specific_DHSs_closest_specific_genes",
                 "txv_exon")
+    to_multiply <- c("txv_TADs",
+                     "g_expression")
     manual_models <- weight_and_score_manually(MA,
                                                celltype_of_interest,
                                                txv_master,
+                                               drivers,
                                                to_add,
                                                to_multiply)
     write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))

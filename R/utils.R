@@ -41,3 +41,7 @@ condition_n_genes <- function(df, ...){
   df %>% dplyr::filter(...) %>% dplyr::pull(symbol) %>% dplyr::n_distinct()
 }
 
+# Count the number of distinct gene-x-CS pairs that meet a set of conditions
+condition_n_gene_x_cs_pairs <- function(df, ...){
+  df %>% dplyr::filter(...) %>% dplyr::distinct(symbol, cs) %>% nrow
+}

@@ -34,23 +34,26 @@ get_txv_level_annotations <- function(variants,
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  txv_contact_scores <- enriched$contact %>%
-    purrr::map(~
-    # Intersect with the contact data
-    purrr::map(., ~ intersect_BEDPE(
-      # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
-      SNPend = variants %>% dplyr::mutate(start = end),
-      TSSend = target.gene.prediction.package::TSSs,
-      bedpe = .) %>%
-        dplyr::transmute(variant, enst,
-                         InteractionID,
-                         value = score) %>%
-        dplyr::inner_join(distance %>% dplyr::select(variant, enst))
-      ) %>%
-      dplyr::bind_rows(.id = "celltype") %>%
-      tidyr::pivot_wider(id_cols = c(variant, enst),
-                         names_from = celltype,
-                         values_from = value))
+  txv_contact_scores <- enriched$contact %>% names %>%
+    sapply(function(assay){
+      sapply(enriched$contact[[assay]] %>% names, function(celltype){
+        # Intersect with the contact data
+        enriched$contact[[assay]][[celltype]] %>%
+          intersect_BEDPE(
+            # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
+            SNPend = variants %>% dplyr::mutate(start = end),
+            TSSend = target.gene.prediction.package::TSSs,
+            bedpe = .) %>%
+          dplyr::transmute(variant, enst,
+                           InteractionID,
+                           value = score) %>%
+          dplyr::inner_join(distance %>% dplyr::select(variant, enst), by = c("variant", "enst"))
+      }, simplify = F, USE.NAMES = T) %>%
+        dplyr::bind_rows(.id = "celltype") %>%
+        tidyr::pivot_wider(id_cols = c(variant, enst),
+                           names_from = celltype,
+                           values_from = value)
+    }, simplify = F, USE.NAMES = T)
   names(txv_contact_scores) <- paste0("contact_", names(txv_contact_scores))
   txv <- c(txv, txv_contact_scores)
 
@@ -131,16 +134,36 @@ get_txv_level_annotations <- function(variants,
                      enst,
                      value = 1)
 
-  # TADs
+  # TADs FIX!! TODO
+  TADs_w_ID <- TADs$BRST.T47D.CNCR %>%
+    dplyr::mutate(TAD = paste0("i.", dplyr::row_number()))
   txv$TADs <- dplyr::full_join(
     target.gene.prediction.package::bed_intersect_left(
-      variants, TADs, keepBcoords = F) %>%
+      variants, TADs_w_ID, keepBcoords = F) %>%
       dplyr::select(variant, TAD),
     target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::TSSs, TADs, keepBcoords = F) %>%
+      TSSs, TADs_w_ID, keepBcoords = F) %>%
       dplyr::select(enst, TAD)
   ) %>%
     dplyr::transmute(variant, enst, value = 1)
+  # TODO: fix issue - non-exclusive TADs from Rao datasets
+  # valr::bed_intersect(variants, TADs_w_ID) %>%
+  #   dplyr::filter(variant.x == "rs11572421:217200580:C:T")
+  # TADs_w_ID <- enriched$TADs %>%
+  #   purrr::map(~ dplyr::mutate(., TAD = paste0("i.", dplyr::row_number()))) %>%
+  #   dplyr::bind_rows(.id = "celltype")
+  # txv$TADs <- dplyr::full_join(
+  #   target.gene.prediction.package::bed_intersect_left(
+  #     variants, TADs_w_ID, keepBcoords = F) %>%
+  #     dplyr::select(variant, TAD, celltype),
+  #   target.gene.prediction.package::bed_intersect_left(
+  #     TSSs, TADs_w_ID, keepBcoords = F) %>%
+  #     dplyr::select(enst, TAD, celltype)
+  # ) %>%
+  #   dplyr::transmute(variant, enst, celltype, value = 1) %>%
+  #   tidyr::pivot_wider(id_cols = c("variant", "enst"),
+  #                      names_from = celltype,
+  #                      values_from = value)
 
   # return
   names(txv) <- paste0("txv_", names(txv))

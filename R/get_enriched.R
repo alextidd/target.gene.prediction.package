@@ -3,6 +3,7 @@ get_enriched <- function(variants,
                          specific_DHSs_closest_specific_genes,
                          contact,
                          expression,
+                         TADs,
                          all_metadata,
                          min_proportion_of_variants_in_top_DHSs,
                          tissue_of_interest,
@@ -84,15 +85,22 @@ get_enriched <- function(variants,
     enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes
     enriched$contact <- contact
     enriched$expression <- expression
-  } else {
+    enriched$TADs <- TADs
+  } else { # subset to enriched celltypes
+    # DHSs
     enriched$DHSs <- DHSs %>%
       purrr::map(~ dplyr::select(., chrom:DHS, dplyr::any_of(enriched$tissues$name[enriched$tissues$object == "DHSs"])))
+    # specific_DHSs_closest_specific_genes
     enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
       dplyr::select(chrom:end, dplyr::any_of(enriched$tissues$name[enriched$tissues$object == "DHSs"]))
+    # contact
     enriched$contact <- names(contact) %>% sapply(function(x) {contact[[x]][names(contact[[x]]) %in% enriched$tissues$name[enriched$tissues$object == "contact"]]},
                                                   simplify = F, USE.NAMES = T)
     enriched$contact <- enriched$contact[lapply(enriched$contact, length) > 0] # remove empty elements
+    # expression
     enriched$expression <- expression[, colnames(expression) %in% enriched$tissues$name, drop = F]
+    # TADs
+    enriched$TADs <- TADs[names(TADs) %in% enriched$tissues$name]
   }
 
   return(enriched)

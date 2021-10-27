@@ -18,6 +18,7 @@ predict_target_genes(
   min_proportion_of_variants_in_top_DHSs = 0.05,
   include_all_celltypes_in_the_enriched_tissue = T,
   do_all_cells = F,
+  do_manual_weighting = F,
   do_scoring = F,
   do_performance = F,
   do_XGBoost = F,

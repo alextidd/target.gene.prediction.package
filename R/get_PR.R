@@ -44,12 +44,12 @@ get_PR <- function(scores, txv_master, ...){
     dplyr::mutate(prediction = as.logical(prediction)) %>%
     dplyr::group_by(prediction_method, prediction_type) %>%
     dplyr::group_modify(
-      ~ data.frame(True = .x %>% condition_n_genes(driver),
-                   Positive = .x %>% condition_n_genes(prediction),
-                   TP = .x %>% condition_n_genes(prediction & driver),
-                   FP = .x %>% condition_n_genes(prediction & !driver),
-                   TN = .x %>% condition_n_genes(!prediction & !driver),
-                   FN = .x %>% condition_n_genes(!prediction & driver))
+      ~ data.frame(True = .x %>% condition_n_gene_x_cs_pairs(driver),
+                   Positive = .x %>% condition_n_gene_x_cs_pairs(prediction),
+                   TP = .x %>% condition_n_gene_x_cs_pairs(prediction & driver),
+                   FP = .x %>% condition_n_gene_x_cs_pairs(prediction & !driver),
+                   TN = .x %>% condition_n_gene_x_cs_pairs(!prediction & !driver),
+                   FN = .x %>% condition_n_gene_x_cs_pairs(!prediction & driver))
     ) %>%
     dplyr::mutate(p = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$p.value,
                   OR = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$estimate,
