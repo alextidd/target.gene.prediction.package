@@ -19,7 +19,7 @@ intersect_BEDPE <- function(bedpe, SNPend, TSSend) {
 
   # Find loops in which one end overlaps a SNP
   SNP_end <- SNPend %>%
-    target.gene.prediction.package::bed_intersect_left(PE, keepBcoords = F) %>%
+    bed_intersect_left(PE, keepBcoords = F) %>%
     dplyr::rename(SNP_origin = origin)
 
   # Intersect the opposite ends of these SNP-intersected loops with TSSs...
@@ -34,7 +34,7 @@ intersect_BEDPE <- function(bedpe, SNPend, TSSend) {
                      by = c("InteractionID" = "InteractionID",
                             "TSS_origin" = "origin")) %>%
     # Intersect with TSSs
-    target.gene.prediction.package::bed_intersect_left(TSSend, suffix = c(".SNP", ".TSS")) %>%
+    bed_intersect_left(TSSend, suffix = c(".SNP", ".TSS")) %>%
     # Extract intersected gene metadata
     dplyr::select(dplyr::ends_with(".TSS"),
                   ensg:enst,

@@ -10,7 +10,7 @@ get_gxv_level_annotations <- function(txv,
 
   # variant-gene closest distance (among all of the gene's transcripts' TSSs)
   gxv$gxv_inv_distance_rank <- txv$txv_inv_distance %>%
-    dplyr::left_join(target.gene.prediction.package::TSSs %>% dplyr::select(enst, symbol)) %>%
+    dplyr::left_join(TSSs %>% dplyr::select(enst, symbol)) %>%
     # Rank for each variant-gene pair
     dplyr::group_by(symbol) %>%
     dplyr::mutate(closest_distance = max(value)) %>%

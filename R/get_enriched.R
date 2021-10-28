@@ -37,17 +37,17 @@ get_enriched <- function(variants,
       dplyr::filter(decile == 1)
 
     # threshold of % of CCVs in top DHSs
-    thresholded_counts <- target.gene.prediction.package::bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
+    thresholded_counts <- bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
       dplyr::group_by(name) %>%
       dplyr::count(name = "n_intersections") %>%
       dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant)) %>%
       dplyr::filter(n_intersections/n_variants > min_proportion_of_variants_in_top_DHSs)
 
-    enriched[["celltypes"]] <- target.gene.prediction.package::bed_fisher_grouped(
+    enriched[["celltypes"]] <- bed_fisher_grouped(
       bedA = specific_DHSs,
       bedA_groups = "name",
       bedB = variants,
-      genome = target.gene.prediction.package::ChrSizes,
+      genome = ChrSizes,
       # filter for effect and significance
       estimate > estimate_cutoff,
       p.value < p.value_cutoff

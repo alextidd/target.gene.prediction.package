@@ -2,7 +2,7 @@
 % Please edit documentation in R/predict_target_genes.R
 \name{predict_target_genes}
 \alias{predict_target_genes}
-\title{Predict target genes of a list of fine-mapped non-coding variants for a trait}
+\title{Predict target genes of fine-mapped variants for a trait}
 \usage{
 predict_target_genes(
   trait = NULL,
@@ -19,6 +19,7 @@ predict_target_genes(
   include_all_celltypes_in_the_enriched_tissue = T,
   do_all_cells = F,
   do_manual_weighting = F,
+  n_unique_manual_weights = NULL,
   do_scoring = F,
   do_performance = F,
   do_XGBoost = F,
@@ -41,14 +42,28 @@ predict_target_genes(
 
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.}
 
-\item{min_proportion_of_variants_in_top_DHSs}{A threshold propportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).}
+\item{min_proportion_of_variants_in_top_DHSs}{A threshold proportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).}
 
-\item{include_all_celltypes_in_the_enriched_tissue}{If TRUE, the package will consider annotations across all available cell types within the enriched tissue, not just those for the exact enriched cell type.}
+\item{include_all_celltypes_in_the_enriched_tissue}{If TRUE, the package will combine annotations across all available cell types within the enriched tissue, not just those in the exact enriched cell type.}
 
-\item{do_all_cells}{If TRUE, the package will consider annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
+\item{do_all_cells}{If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
+
+\item{do_manual_weighting}{If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.}
+
+\item{n_unique_manual_weights}{The number of unique weights for the do_manual_weighting chunk to consider. If NULL, the chunk will consider as many unique weights as there are to_add components. Default is NULL.}
+
+\item{do_scoring}{If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.}
+
+\item{do_performance}{If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting drivers as the targets of nearby variants. Default is FALSE.}
+
+\item{do_XGBoost}{If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.}
+
+\item{contact}{If you are repeatedly running predict_target_genes, you can load the `contact` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.}
+
+\item{DHSs}{If you are repeatedly running predict_target_genes, you can load the `DHSs` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.}
 }
 \value{
-A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
+A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).
 }
 \description{
 The master, user-facing function of this package.

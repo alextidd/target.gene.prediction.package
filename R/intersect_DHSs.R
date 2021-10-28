@@ -17,7 +17,7 @@ intersect_DHSs <- function(l,
   l <- DHSs %>%
     lapply(function(x){
       score_cols <- setdiff(colnames(x), c("chrom", "start", "end", "DHS"))
-      target.gene.prediction.package::bed_intersect_left(
+      bed_intersect_left(
           bedA = query,
           bedB = x %>% dplyr::select(-DHS),
           keepBcoords = F) %>%
@@ -34,7 +34,7 @@ intersect_DHSs <- function(l,
 }
 
 
-# target.gene.prediction.package::bed_intersect_left(
+# bed_intersect_left(
 #   query,
 #   DHSs,
 #   keepBcoords = F) %>%

@@ -1,8 +1,6 @@
 .Rproj.user
 .Rhistory
 .RData
-external_data/
+reference_data/old/
 out/
-MEETINGS.txt
-weights_job.sh
-weights_job.R
+tmp/

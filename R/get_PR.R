@@ -2,17 +2,21 @@
 #'
 #' Get PR and AUPRC for predictions
 #'
-#' @param predictions `predictions` df in predict_target_genes function
-#' @param ... Columns to use as predictors
+#' @param scores scores object passed from predict_target_genes
+#' @param txv_master txv_master object passed from predict_target_genes
+#' @param drivers drivers object passed from predict_target_genes
+#' @param ... Columns to use as predictors (e.g. score column, values of individual annotation columns, ...)
 #'
 #' @return `PR` tibble
 #' @export
-get_PR <- function(scores, txv_master, ...){
+get_PR <- function(scores, txv_master, drivers, ...){
 
   performance <- list()
 
   # score, prediction and max
   pred <- scores %>%
+    # add drivers
+    dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
     # get predictions only in CSs with a driver within max prediction distance for performance evaluation
     get_testable() %>%
     dplyr::select(cs, symbol, ..., driver) %>%
@@ -28,10 +32,10 @@ get_PR <- function(scores, txv_master, ...){
     dplyr::filter(score == max(score)) %>%
     # find maximum scoring gene per CS-x-method
     dplyr::group_by(prediction_method, cs) %>%
-    dplyr::mutate(max = as.numeric(score == max(score))) %>%
+    dplyr::mutate(max = as.numeric((score == max(score) & score != 0))) %>%
     dplyr::ungroup() %>%
     # find positives (score > median(score)) overall
-    dplyr::mutate(prediction = as.numeric(score >= median(score))) %>%
+    dplyr::mutate(prediction = as.numeric((score >= median(score) & score != 0))) %>%
     # gather prediction type columns
     tidyr::pivot_longer(c(score, max, prediction),
                         names_to = "prediction_type",
@@ -51,13 +55,15 @@ get_PR <- function(scores, txv_master, ...){
                    TN = .x %>% condition_n_gene_x_cs_pairs(!prediction & !driver),
                    FN = .x %>% condition_n_gene_x_cs_pairs(!prediction & driver))
     ) %>%
+    dplyr::rowwise() %>%
     dplyr::mutate(p = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$p.value,
                   OR = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$estimate,
-                  Precision = TP / (TP + FN),
-                  Recall = TP / (TP + FP),
-                  Sensitivity = TP / (TP + FP),
+                  Precision = TP / (TP + FP),
+                  Recall = TP / (TP + FN),
+                  Sensitivity = TP / (TP + FN),
                   Specificity = TN / (TN + FP),
-                  Fscore = (Precision * Recall) / (Precision + Recall))
+                  Fscore = (Precision * Recall) / (Precision + Recall)) %>%
+    dplyr::ungroup()
 
   # format for PR function input
   PR_in <- pred %>%
@@ -73,7 +79,7 @@ get_PR <- function(scores, txv_master, ...){
                        # calculate AUPRC
                        yardstick::pr_auc(driver, prediction) %>%
                        dplyr::select(prediction_method, prediction_type,
-                                     AUC = .estimate)) %>%
+                                     PR_AUC = .estimate)) %>%
     dplyr::ungroup()
 
   return(performance)

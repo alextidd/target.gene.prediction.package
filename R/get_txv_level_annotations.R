@@ -1,8 +1,7 @@
 get_txv_level_annotations <- function(variants,
                                       txv_master,
                                       variant_to_gene_max_distance,
-                                      enriched,
-                                      TADs) {
+                                      enriched) {
   cat("Annotating transcript x variant pairs...\n")
 
   txv <- list()
@@ -11,7 +10,7 @@ get_txv_level_annotations <- function(variants,
   distance <- txv_master %>%
     dplyr::group_by(variant) %>%
     # Calculate inverse of the absolute bp distance for each variant-transcript pair
-    dplyr::mutate(pair.distance = abs((start.variant + variant_to_gene_max_distance) - start.TSS),
+    dplyr::mutate(pair.distance = abs(start.variant - start.TSS),
                   pair.inverse_distance = 1/pair.distance,
                   # ranking transcript TSSs (if two transcript TSSs are equidistant to the variant, they will receive the same, lower rank)
                   pair.inverse_distance_rank = 1/rank(pair.distance, ties.method = "min"))
@@ -42,7 +41,7 @@ get_txv_level_annotations <- function(variants,
           intersect_BEDPE(
             # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
             SNPend = variants %>% dplyr::mutate(start = end),
-            TSSend = target.gene.prediction.package::TSSs,
+            TSSend = TSSs,
             bedpe = .) %>%
           dplyr::transmute(variant, enst,
                            InteractionID,
@@ -89,8 +88,8 @@ get_txv_level_annotations <- function(variants,
   txv$promoter <- variants %>%
     dplyr::select(chrom:variant) %>%
     # Get variants within promoter regions
-    target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::promoters,
+    bed_intersect_left(
+      promoters,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
                      enst,
@@ -100,8 +99,8 @@ get_txv_level_annotations <- function(variants,
   txv$promoter_DHS_bins_sum <- variants %>%
     dplyr::select(chrom:variant) %>%
     # Get variants within promoter regions
-    target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::promoters,
+    bed_intersect_left(
+      promoters,
       keepBcoords = F, keepBmetadata = T) %>%
     # Get DHS bins at those promoter variants
     intersect_DHSs(list(),
@@ -117,8 +116,8 @@ get_txv_level_annotations <- function(variants,
   # intronic variants
   txv$intron <- variants %>%
     # Get variants within introns
-    target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::introns, .,
+    bed_intersect_left(
+      introns, .,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
                      enst,
@@ -127,43 +126,44 @@ get_txv_level_annotations <- function(variants,
   # exonic (coding) variants
   txv$exon <- variants %>%
     # Get variants within introns
-    target.gene.prediction.package::bed_intersect_left(
-      target.gene.prediction.package::exons, .,
+    bed_intersect_left(
+      exons, .,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
                      enst,
                      value = 1)
 
-  # TADs FIX!! TODO
-  TADs_w_ID <- TADs$BRST.T47D.CNCR %>%
-    dplyr::mutate(TAD = paste0("i.", dplyr::row_number()))
-  txv$TADs <- dplyr::full_join(
-    target.gene.prediction.package::bed_intersect_left(
-      variants, TADs_w_ID, keepBcoords = F) %>%
-      dplyr::select(variant, TAD),
-    target.gene.prediction.package::bed_intersect_left(
-      TSSs, TADs_w_ID, keepBcoords = F) %>%
-      dplyr::select(enst, TAD)
-  ) %>%
-    dplyr::transmute(variant, enst, value = 1)
+  # # TADs FIX!! TODO
+  # TADs_w_ID <- TADs$BRST.T47D.CNCR %>%
+  #   dplyr::mutate(TAD = paste0("i.", dplyr::row_number()))
+  # txv$TADs <- dplyr::full_join(
+  #   bed_intersect_left(
+  #     variants, TADs_w_ID, keepBcoords = F) %>%
+  #     dplyr::select(variant, TAD),
+  #   bed_intersect_left(
+  #     TSSs, TADs_w_ID, keepBcoords = F) %>%
+  #     dplyr::select(enst, TAD)
+  # ) %>%
+  #   dplyr::transmute(variant, enst, value = 1)
   # TODO: fix issue - non-exclusive TADs from Rao datasets
   # valr::bed_intersect(variants, TADs_w_ID) %>%
   #   dplyr::filter(variant.x == "rs11572421:217200580:C:T")
-  # TADs_w_ID <- enriched$TADs %>%
-  #   purrr::map(~ dplyr::mutate(., TAD = paste0("i.", dplyr::row_number()))) %>%
-  #   dplyr::bind_rows(.id = "celltype")
-  # txv$TADs <- dplyr::full_join(
-  #   target.gene.prediction.package::bed_intersect_left(
-  #     variants, TADs_w_ID, keepBcoords = F) %>%
-  #     dplyr::select(variant, TAD, celltype),
-  #   target.gene.prediction.package::bed_intersect_left(
-  #     TSSs, TADs_w_ID, keepBcoords = F) %>%
-  #     dplyr::select(enst, TAD, celltype)
-  # ) %>%
-  #   dplyr::transmute(variant, enst, celltype, value = 1) %>%
-  #   tidyr::pivot_wider(id_cols = c("variant", "enst"),
-  #                      names_from = celltype,
-  #                      values_from = value)
+  TADs_w_ID <- enriched$TADs %>%
+    purrr::map(~ dplyr::mutate(., TAD = paste0("i.", dplyr::row_number()))) %>%
+    dplyr::bind_rows(.id = "celltype")
+  txv$TADs <- dplyr::full_join(
+    bed_intersect_left(
+      variants, TADs_w_ID, keepBcoords = F) %>%
+      dplyr::select(variant, TAD, celltype),
+    bed_intersect_left(
+      TSSs, TADs_w_ID, keepBcoords = F) %>%
+      dplyr::select(enst, TAD, celltype),
+    by = c("TAD", "celltype")
+  ) %>%
+    dplyr::transmute(variant, enst, celltype, value = 1) %>%
+    tidyr::pivot_wider(id_cols = c("variant", "enst"),
+                       names_from = celltype,
+                       values_from = value)
 
   # return
   names(txv) <- paste0("txv_", names(txv))

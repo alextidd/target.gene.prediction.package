@@ -61,14 +61,14 @@ predict_target_genes <- function(trait = NULL,
 
   # import the user-provided variants
   cat("Importing variants...\n")
-  variants <- target.gene.prediction.package::import_BED(
+  variants <- import_BED(
     variantsFile,
     metadata_cols = c("variant", "cs"))
 
   # import user-provided drivers and check that all symbols are in the GENCODE data
   cat("Importing driver genes...\n")
-  drivers <- target.gene.prediction.package::read_tibble(driversFile)$V1 %>%
-    target.gene.prediction.package::check_driver_symbols(., driversFile)
+  drivers <- read_tibble(driversFile)$V1 %>%
+    check_driver_symbols(., driversFile)
 
   # import the contact data
   cat("Importing contact data...\n")
@@ -110,7 +110,7 @@ predict_target_genes <- function(trait = NULL,
   # get variants at DHSs ('enhancer variants')
   cat("2) Finding enhancer variants...\n")
   open_variants <- DHSs_master %>%
-    target.gene.prediction.package::bed_intersect_left(
+    bed_intersect_left(
       variants, .,
       keepBcoords = F,
       keepBmetadata = F)
@@ -118,9 +118,9 @@ predict_target_genes <- function(trait = NULL,
   # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs <2Mb apart)
   txv_master <- variants %>%
     valr::bed_slop(both = variant_to_gene_max_distance,
-                   genome = target.gene.prediction.package::ChrSizes,
+                   genome = ChrSizes,
                    trim = T) %>%
-    valr::bed_intersect(., target.gene.prediction.package::TSSs,
+    valr::bed_intersect(., TSSs,
                         suffix = c(".variant", ".TSS")) %>%
     dplyr::distinct(chrom,
                     start.variant = start.variant + variant_to_gene_max_distance,
@@ -156,8 +156,7 @@ predict_target_genes <- function(trait = NULL,
   txv <- get_txv_level_annotations(variants,
                                    txv_master,
                                    variant_to_gene_max_distance,
-                                   enriched,
-                                   TADs) # TODO: fix Rao and remove this, only use enriched TADs
+                                   enriched)
 
   # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
   gxv <- get_gxv_level_annotations(txv,
@@ -272,14 +271,14 @@ predict_target_genes <- function(trait = NULL,
   # Generate PR curves (model performance metric)
   performance <- scores %>%
     # get performance
-    target.gene.prediction.package::get_PR(txv_master, drivers, c("score", dplyr::starts_with(names(master)))) %>%
+    get_PR(txv_master, drivers, c("score", dplyr::starts_with(names(master)))) %>%
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
   pdf(out$PR, height = 10, width = 20, onefile = T)
   performance$PR %>%
     dplyr::filter(prediction_method == "score") %>%
-    target.gene.prediction.package::plot_PR(colour = prediction_type)
+    plot_PR(colour = prediction_type)
   performance$PR %>%
     dplyr::filter(prediction_method == "score") %>%
     dplyr::select(prediction_type, PR_AUC) %>%
@@ -379,14 +378,14 @@ predict_target_genes <- function(trait = NULL,
 #   # finalise columns
 #   dplyr::select(cs, symbol, score, prediction, max_score, n_evidence, evidence)
 # # Generate PR curves (model performance metric)
-# performance <- target.gene.prediction.package::get_PR(predictions, score)
+# performance <- get_PR(predictions, score)
 # # PR of each individual annotation (columns of master)
-# performance_all <- target.gene.prediction.package::get_PR(master, dplyr::all_of(annotation_cols))
+# performance_all <- get_PR(master, dplyr::all_of(annotation_cols))
 # # add annotation level info
 # performance_all$PR <- performance_all$PR %>% dplyr::mutate(level = sub("_.*", "", prediction_type))
 #
 # pdf(out$PR, height = 10, onefile = T)
-# performance$PR %>% target.gene.prediction.package::plot_PR(colour = prediction_type)
+# performance$PR %>% plot_PR(colour = prediction_type)
 # performance$PR %>%
 #   dplyr::select(prediction_type, PR_AUC) %>%
 #   dplyr::distinct() %>%

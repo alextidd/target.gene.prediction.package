@@ -6,7 +6,7 @@ get_txd_level_annotations <- function(ensts_near_vars,
 
   #Wrong - TODO must fix
   # closest DHS to the transcript
-  txd$closest <- valr::bed_closest(target.gene.prediction.package::TSSs %>%
+  txd$closest <- valr::bed_closest(TSSs %>%
                                      dplyr::filter(enst %in% ensts_near_vars),
                                    DHSs_master) %>%
     # valr's .overlap and .dist results are unreliable, generating my own

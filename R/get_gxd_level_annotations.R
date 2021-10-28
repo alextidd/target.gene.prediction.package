@@ -3,7 +3,7 @@ get_gxd_level_annotations <- function(variants,
                                       specific_DHSs_closest_specific_genes){
   gxd <- list()
   gxd[["gxd_specific_DHSs_closest_specific_genes"]] <- variants %>%
-    target.gene.prediction.package::bed_intersect_left(DHSs_master, keepBcoords = F) %>%
+    bed_intersect_left(DHSs_master, keepBcoords = F) %>%
     dplyr::distinct(DHS) %>%
     dplyr::inner_join(specific_DHSs_closest_specific_genes) %>%
     tidyr::pivot_longer(-DHS, names_to = "celltype", values_to = "symbol") %>%
