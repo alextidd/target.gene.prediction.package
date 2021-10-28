@@ -1,4 +1,4 @@
-#' Predict target genes of a list of fine-mapped non-coding variants for a trait
+#' Predict target genes of fine-mapped variants for a trait
 #'
 #' The master, user-facing function of this package.
 #'
@@ -9,22 +9,30 @@
 #' @param driversFile The file containing a list of trait driver gene symbols.
 #' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
-#' @param min_proportion_of_variants_in_top_DHSs A threshold propportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
-#' @param include_all_celltypes_in_the_enriched_tissue If TRUE, the package will consider annotations across all available cell types within the enriched tissue, not just those for the exact enriched cell type.
-#' @param do_all_cells If TRUE, the package will consider annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
-#' @return A file of variant-gene pair predictions, with associated scores, saved in the given output directory.
+#' @param min_proportion_of_variants_in_top_DHSs A threshold proportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
+#' @param include_all_celltypes_in_the_enriched_tissue If TRUE, the package will combine annotations across all available cell types within the enriched tissue, not just those in the exact enriched cell type.
+#' @param do_all_cells If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
+#' @param do_manual_weighting If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.
+#' @param n_unique_manual_weights The number of unique weights for the do_manual_weighting chunk to consider. If NULL, the chunk will consider as many unique weights as there are to_add components. Default is NULL.
+#' @param do_scoring If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.
+#' @param do_performance If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting drivers as the targets of nearby variants. Default is FALSE.
+#' @param do_XGBoost If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.
+#' @param contact If you are repeatedly running predict_target_genes, you can load the `contact` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.
+#' @param DHSs If you are repeatedly running predict_target_genes, you can load the `DHSs` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.
+#' @return A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).
 #' @export
 predict_target_genes <- function(trait = NULL,
                                  tissue_of_interest = NULL,
                                  outDir = "out",
-                                 variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
-                                 driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
-                                 referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
+                                 variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/example_data/data/BC.VariantList.bed",
+                                 driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/example_data/data/breast_cancer_drivers_2021.txt",
+                                 referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/reference_data/data/",
                                  variant_to_gene_max_distance = 2e6,
                                  min_proportion_of_variants_in_top_DHSs = 0.05,
                                  include_all_celltypes_in_the_enriched_tissue = T,
                                  do_all_cells = F,
                                  do_manual_weighting = F,
+                                 n_unique_manual_weights = NULL,
                                  do_scoring = F,
                                  do_performance = F,
                                  do_XGBoost = F,
@@ -32,9 +40,9 @@ predict_target_genes <- function(trait = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
+  # library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/target.gene.prediction.package/example_data/data/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/example_data/data/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
   # for testing externally:
-  # library(devtools) ; setwd("/working/lab_georgiat/alexandT/target.gene.prediction.package") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
+  # library(devtools) ; setwd("/working/lab_georgiat/alexandT/target.gene.prediction.package") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -205,7 +213,8 @@ predict_target_genes <- function(trait = NULL,
                                                txv_master,
                                                drivers,
                                                to_add,
-                                               to_multiply)
+                                               to_multiply,
+                                               n_unique_manual_weights)
     write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))
   } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
   }
@@ -262,10 +271,8 @@ predict_target_genes <- function(trait = NULL,
   if(do_performance){
   # Generate PR curves (model performance metric)
   performance <- scores %>%
-    # add drivers
-    dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
     # get performance
-    target.gene.prediction.package::get_PR(txv_master, c("score", dplyr::starts_with(names(master)))) %>%
+    target.gene.prediction.package::get_PR(txv_master, drivers, c("score", dplyr::starts_with(names(master)))) %>%
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
@@ -275,31 +282,31 @@ predict_target_genes <- function(trait = NULL,
     target.gene.prediction.package::plot_PR(colour = prediction_type)
   performance$PR %>%
     dplyr::filter(prediction_method == "score") %>%
-    dplyr::select(prediction_type, AUC) %>%
+    dplyr::select(prediction_type, PR_AUC) %>%
     dplyr::distinct() %>%
-    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, AUC),
-                                 y = AUC)) +
+    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, PR_AUC),
+                                 y = PR_AUC)) +
     ggplot2::geom_col() +
     ggplot2::coord_flip() +
     ggplot2::labs(x = "Predictor", y = "PR AUC")
   performance$PR %>%
-    dplyr::filter(AUC == max(AUC)) %>%
+    dplyr::filter(PR_AUC == max(PR_AUC)) %>%
     plot_PR(colour = prediction_method) +
     # ggplot2::geom_label(data = . %>%
     #                      dplyr::ungroup() %>%
-    #                      dplyr::filter(AUC == max(AUC),
+    #                      dplyr::filter(PR_AUC == max(PR_AUC),
     #                                    prediction_type == "max",
     #                                    .threshold %ni% c(Inf, 0)),
     #                    ggplot2::aes(label = prediction_method)) +
     ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")"))
   performance$PR %>%
-    dplyr::select(prediction_method, prediction_type, AUC) %>%
+    dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
     dplyr::filter(prediction_type == "score") %>%
     dplyr::distinct() %>%
     dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
     dplyr::distinct() %>%
-    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, AUC),
-                                 y = AUC,
+    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, PR_AUC),
+                                 y = PR_AUC,
                                  fill = level)) +
     ggplot2::geom_col() +
     ggplot2::labs(x = "Predictor", y = "PR AUC") +
@@ -381,28 +388,28 @@ predict_target_genes <- function(trait = NULL,
 # pdf(out$PR, height = 10, onefile = T)
 # performance$PR %>% target.gene.prediction.package::plot_PR(colour = prediction_type)
 # performance$PR %>%
-#   dplyr::select(prediction_type, AUC) %>%
+#   dplyr::select(prediction_type, PR_AUC) %>%
 #   dplyr::distinct() %>%
-#   ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, AUC),
-#                                y = AUC)) +
+#   ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, PR_AUC),
+#                                y = PR_AUC)) +
 #   ggplot2::geom_col() +
 #   ggplot2::coord_flip() +
-#   ggplot2::labs(x = "Predictor", y = "PR AUC")
+#   ggplot2::labs(x = "Predictor", y = "PR PR_AUC")
 # performance_all$PR %>%
-#   dplyr::filter(AUC == max(AUC)) %>%
+#   dplyr::filter(PR_AUC == max(PR_AUC)) %>%
 #   plot_PR(colour = prediction_method) +
 #   ggplot2::theme(legend.position = "none")
 # performance_all$PR %>%
-#   dplyr::select(prediction_method, prediction_type, AUC) %>%
+#   dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
 #   dplyr::filter(prediction_type == "score") %>%
 #   dplyr::distinct() %>%
 #   dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
 #   dplyr::distinct() %>%
-#   ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, AUC),
-#                                y = AUC,
+#   ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, PR_AUC),
+#                                y = PR_AUC,
 #                                fill = level)) +
 #   ggplot2::geom_col() +
-#   ggplot2::labs(x = "Predictor", y = "PR AUC") +
+#   ggplot2::labs(x = "Predictor", y = "PR PR_AUC") +
 #   ggplot2::facet_wrap( ~ level, scales = "free_x")
 # dev.off()
 
