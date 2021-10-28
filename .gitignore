@@ -1,6 +1,7 @@
 .Rproj.user
 .Rhistory
 .RData
-reference_data/old/
+reference_data/
+example_data/
 out/
 tmp/
