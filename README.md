@@ -5,18 +5,18 @@ October 28, 2021
 
 ## Interactive development
 
-This package was written using package development conventions from <https://r-pkgs.org/>. The functions are all documented, so once the package is loaded you can access the help pages for individual functions, which explain all the arguments. `predict_target_genes()` is the user-facing master function of this package. All other functions are helper functions called by `predict_target_genes()`.
-
-``` r
-?predict_target_genes()
-```
-
 To simulate installing and loading the package during interactive development...
 
 ``` r
 setwd("/working/lab_georgiat/alexandT/tgp/")
 library(devtools)
 load_all()
+```
+
+This package was written using package development conventions from <https://r-pkgs.org/>. The functions are all documented, so once the package is loaded you can access the help pages for individual functions, which explain all the arguments. `predict_target_genes()` is the user-facing master function of this package. All other functions are helper functions called by `predict_target_genes()`.
+
+``` r
+?predict_target_genes()
 ```
 
 If you also want the external reference data within the package directory, you can copy it over to mirror my structure...
@@ -95,12 +95,53 @@ Smaller reference datasets (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`)
 
 ### External reference data
 
-Larger reference datasets are stored as local files in `/working/lab_georgiat/alexandT/tgp/reference_data/data/`. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible code to generate these files is in `/working/lab_georgiat/alexandT/tgp/reference_data/data-raw/`
+Larger reference datasets are stored as local files in `reference_data/data/`. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible code to generate these files is in `/working/lab_georgiat/alexandT/tgp/reference_data/data-raw/`
 
 ``` r
 list.files("/working/lab_georgiat/alexandT/tgp/reference_data/data/")
 ```
 
+    ## [1] "all_metadata.tsv" "contact"          "DHSs"             "expression.tsv"  
+    ## [5] "TADs"
+
 ## User-provided data
 
-`/working/lab_georgiat/alexandT/tgp/example_data/data/`
+There are two required user-provided files for the `predict_target_genes` function: the list of trait drivers (the `driversFile` argument) amd the list of trait variants (the `variantsFile` argument). Example inputs can be found in my local `example_data/data/` directory. Full paths to these are set as the default arguments of the function.
+
+### Trait variants
+
+The variants file should be a BED file with metadata columns for the variant name and the credible set to which it belongs.
+
+``` bash
+head /working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed
+```
+
+    ## chr1 10551762    10551763    rs657244:10551763:A:G   BCAC_FM_1ichav1
+    ## chr1 10563363    10563364    rs202087283:10563364:G:A    BCAC_FM_1ichav1
+    ## chr1 10564674    10564675    chr1_10564675_A_G   BCAC_FM_1ichav1
+    ## chr1 10566521    10566522    rs617728:10566522:C:T   BCAC_FM_1ichav1
+    ## chr1 10569000    10569000    rs60354536:10569000:C:CT    BCAC_FM_1ichav1
+    ## chr1 10569257    10569258    rs2480785:10569258:G:A  BCAC_FM_1ichav1
+    ## chr1 10579544    10579545    rs1411402:10579545:G:T  BCAC_FM_1ichav1
+    ## chr1 10580890    10580891    chr1_10580891_C_T   BCAC_FM_1ichav1
+    ## chr1 10581050    10581051    rs2506885:10581051:A:T  BCAC_FM_1ichav1
+    ## chr1 10581657    10581658    rs2056417   BCAC_FM_1ichav1
+
+### Trait drivers
+
+The drivers file should be a file with a single column with the driver gene symbols.
+
+``` bash
+head /working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt
+```
+
+    ## AKT1
+    ## ARID1A
+    ## ATM
+    ## BRCA1
+    ## BRCA2
+    ## CBFB
+    ## CDH1
+    ## CDKN1B
+    ## CHEK2
+    ## CTCF
