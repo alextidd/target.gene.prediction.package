@@ -93,11 +93,11 @@ This package will use both reference genomic annotation datasets and user-provid
 
 #### Internal reference data
 
-Smaller reference datasets (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`.
+Smaller generic reference datasets (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`.
 
 #### External reference data
 
-Larger reference datasets are stored as local files in `reference_data/data/`. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible code to generate these files is in `/working/lab_georgiat/alexandT/tgp/reference_data/data-raw/`
+Larger cell-type-specific reference datasets are stored as local files in `reference_data/data/`. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible code to generate these files is in `reference_data/data-raw/`
 
 ``` r
 list.files("/working/lab_georgiat/alexandT/tgp/reference_data/data/")

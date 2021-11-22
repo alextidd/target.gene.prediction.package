@@ -208,6 +208,7 @@ predict_target_genes <- function(trait = NULL,
                 "txv_exon")
     to_multiply <- c("txv_TADs",
                      "g_expression")
+    # celltype_of_interest = "BRST.HMEC" ; n_unique_manual_weights = 1
     manual_models <- weight_and_score_manually(MA,
                                                celltype_of_interest,
                                                txv_master,
@@ -278,30 +279,13 @@ predict_target_genes <- function(trait = NULL,
 
   pdf(out$PR, height = 10, width = 20, onefile = T)
   performance$PR %>%
-    dplyr::filter(prediction_method == "score") %>%
-    plot_PR(colour = prediction_type)
-  performance$PR %>%
-    dplyr::filter(prediction_method == "score") %>%
-    dplyr::select(prediction_type, PR_AUC) %>%
-    dplyr::distinct() %>%
-    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, PR_AUC),
-                                 y = PR_AUC)) +
-    ggplot2::geom_col() +
-    ggplot2::coord_flip() +
-    ggplot2::labs(x = "Predictor", y = "PR AUC")
-  performance$PR %>%
-    dplyr::filter(PR_AUC == max(PR_AUC)) %>%
+    dplyr::group_by(prediction_method, prediction_type) %>%
     plot_PR(colour = prediction_method) +
-    # ggplot2::geom_label(data = . %>%
-    #                      dplyr::ungroup() %>%
-    #                      dplyr::filter(PR_AUC == max(PR_AUC),
-    #                                    prediction_type == "max",
-    #                                    .threshold %ni% c(Inf, 0)),
-    #                    ggplot2::aes(label = prediction_method)) +
-    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")"))
+    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")")) +
+    ggplot2::theme(legend.position = "none")
   performance$PR %>%
     dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
-    dplyr::filter(prediction_type == "score") %>%
+    dplyr::filter(prediction_type == "max") %>%
     dplyr::distinct() %>%
     dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
     dplyr::distinct() %>%
@@ -310,13 +294,6 @@ predict_target_genes <- function(trait = NULL,
                                  fill = level)) +
     ggplot2::geom_col() +
     ggplot2::labs(x = "Predictor", y = "PR AUC") +
-    ggplot2::coord_flip()
-  performance$summary %>%
-    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, Fscore),
-                                 y = Fscore,
-                                 fill = level)) +
-    ggplot2::geom_col() +
-    ggplot2::facet_wrap(~prediction_type) +
     ggplot2::coord_flip()
   dev.off()
   }
@@ -354,7 +331,7 @@ predict_target_genes <- function(trait = NULL,
   #      predictions,
   #      performance,
   #      xgb1,
-  #      file = paste0(out$Base, ".Rdata"))
+  #      file = paste0(out$Base, "data.Rdata"))
 
   return(MA)
 }

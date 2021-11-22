@@ -81,7 +81,12 @@ get_PR <- function(scores, txv_master, drivers, ...){
                        dplyr::select(prediction_method, prediction_type,
                                      PR_AUC = .estimate)) %>%
     dplyr::ungroup()
-
+  
+  # Add area under curve metric to summary
+  performance$summary <- performance$summary %>%
+    dplyr::left_join(performance$PR %>% dplyr::select(prediction_method,
+                                                      prediction_type,
+                                                      PR_AUC))
   return(performance)
 
 }
