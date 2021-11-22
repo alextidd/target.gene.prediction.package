@@ -86,28 +86,29 @@ MAE <- predict_target_genes(trait = "BC",
 ```
 
 ## Package data
-This package will both use reference genomic annotation datasets and user-provided trait-specific datasets.
+This package will use both reference genomic annotation datasets and user-provided trait-specific datasets.
 
-### Internal reference data
+### Reference data
+#### Internal reference data
 Smaller reference datasets (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`.
 
-### External reference data
+#### External reference data
 Larger reference datasets are stored as local files in  `reference_data/data/`. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible code to generate these files is in `/working/lab_georgiat/alexandT/tgp/reference_data/data-raw/`
 ```{r local reference directory, eval = T}
 list.files("/working/lab_georgiat/alexandT/tgp/reference_data/data/")
 ```
 
-## User-provided data
+### User-provided data
 There are two required user-provided files for the `predict_target_genes` function: the list of trait drivers (the `driversFile` argument) amd the list of trait variants (the `variantsFile` argument). Example inputs can be found in my local `example_data/data/` directory. Full paths to these are set as the default arguments of the function.
 
-### Trait variants 
+#### Trait variants 
 The variants file should be a BED file with metadata columns for the variant name and the credible set to which it belongs.
 ```{bash variantsFile structure, eval = T}
 head /working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed
 ```
 
-### Trait drivers
-The drivers file should be a file with a single column with the driver gene symbols.
+#### Trait drivers
+The drivers file should be a file with a single column of driver gene symbols. These symbols should be GENCODE-compatible.
 ```{bash driversFile structure, eval = T}
 head /working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt
 ```

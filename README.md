@@ -129,7 +129,7 @@ head /working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed
 
 ### Trait drivers
 
-The drivers file should be a file with a single column with the driver gene symbols.
+The drivers file should be a file with a single column of driver gene symbols. These symbols should be GENCODE-compatible.
 
 ``` bash
 head /working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt

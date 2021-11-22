@@ -1,5 +1,5 @@
 ## code to prepare `sysdata` dataset goes here
-library(devtools) ; setwd("/working/lab_georgiat/alexandT/target.gene.prediction.package") ; load_all()
+library(devtools) ; setwd("/working/lab_georgiat/alexandT/tgp") ; load_all()
 
 # introns
 intronFile <- "/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/reference_data/GENCODE/proteincoding.gencode.v34lift37.basic.intron.bed.gz"
