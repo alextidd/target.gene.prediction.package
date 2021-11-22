@@ -1,4 +1,4 @@
-Package: target.gene.prediction.package
+Package: tgp
 Title: Target Gene Prediction
 Version: 0.0.0.9000
 Authors@R: 
