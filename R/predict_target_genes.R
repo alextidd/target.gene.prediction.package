@@ -40,8 +40,7 @@ predict_target_genes <- function(trait = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # setwd("/working/lab_georgiat/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ;
-  # contact = NULL ; DHSs = NULL
+  # setwd("/working/lab_georgiat/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
   # for testing externally:
   # library(devtools) ; setwd("/working/lab_georgiat/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
 
@@ -54,7 +53,9 @@ predict_target_genes <- function(trait = NULL,
   # define the output
   dir.create(outDir, recursive = T, showWarnings = F)
   out <- list()
-  out$Base <- paste0(outDir,"/") %>% { if(!is.null(trait)) paste0(., trait, "_") else . }
+  prefix <- ifelse(!is.null(trait), paste0(trait, "_"), "")
+  out$Base <- paste0(outDir,"/", prefix) %>%
+    { if(do_all_cells) paste0(., "all_cells/", prefix) else paste0(., "enriched_cells/", prefix)}
   out$Annotations <- paste0(out$Base, "target_gene_annotations.tsv")
   out$Predictions <- paste0(out$Base, "target_gene_predictions.tsv")
   out$Performance <- paste0(out$Base, "performance.tsv")
@@ -174,10 +175,10 @@ predict_target_genes <- function(trait = NULL,
   # -> wide-format (one row per transcript|variant pair, one column per celltype)
   # -> only variant-transcript combinations within 2Mb are included
   # -> pair ID rownames: variant|enst
+  # Each annotation will be aggregated across samples, taking the maximum value per pair
   cat("3) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
   master <- c(v, t, g, c, txv, gxv, txc) %>%
     purrr::map(~ matricise_by_pair(., txv_master))
-  # master %>% write_tibble(out$Annotations)
 
   # MultiAssayExperiment
   # colData
@@ -223,44 +224,57 @@ predict_target_genes <- function(trait = NULL,
   # 6) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
+
+  weights <- list(
+    txv_TADs = 1,
+    txv_inv_distance = 1,
+    gxv_specific_DHSs_closst_specific_genes = 1,
+    txv_intron = 1,
+    t_DHSs_signal = 1,
+    g_expression = 1,
+    v_inv_n_genes = 0.66,
+    c_inv_n_variants = 0.66
+  ) # ALL OTHERS = 0.33
+
   # Generating a single score for each variant-transcript pair, with evidence
   # sum(all non-celltype-specific values, enriched celltype-specific annotations)
   scores <- names(master) %>%
-    # create comma-concatenated list of non-zero annotations contributing to the scores of each pair
-    lapply(function(name)
+    lapply(function(name){
+      # weight annotations
       master[[name]] %>%
         tibble::as_tibble(rownames = "pair") %>%
-        dplyr::rename_with(~ paste0(name, ".", .x), -pair) %>%
-        tidyr::pivot_longer(names_to = "annotation",
-                            values_to = "value",
-                            cols = where(is.numeric)) #%>%
-        #dplyr::filter(value > 0, greplany(paste0("\\.", c("value", enriched$tissues$code)), annotation))
-    ) %>%
+        dplyr::mutate(annotation = name,
+                      value_unweighted = value,
+                      value = value * { if(name %in% names(weights)) weights[[name]] else 0.33 })
+    }) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     dplyr::group_by(pair) %>%
-    dplyr::mutate(score = sum(value),
+    # create comma-concatenated list of non-zero annotations contributing to the scores of each pair
+    dplyr::mutate(score = mean(value),
+                  score_unweighted = mean(value_unweighted),
                   evidence = paste(annotation, collapse = ","),
                   n_evidence = dplyr::n_distinct(annotation)) %>%
     dplyr::ungroup() %>%
     # spread out annotations again
-    tidyr::pivot_wider(id_cols = c(pair, score, evidence, n_evidence),
+    tidyr::pivot_wider(id_cols = c(pair, score, score_unweighted, evidence, n_evidence),
                        names_from = annotation,
                        values_from = value) %>%
     # get CSs and symbols
-    dplyr::left_join(txv_master %>% dplyr::select(pair, cs, symbol)) %>%
+    dplyr::left_join(txv_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
+                                                  pair, cs, symbol)) %>%
     # select columns
-    dplyr::select(cs, symbol, score, n_evidence, evidence, where(is.numeric))
+    dplyr::select(chrom:end, cs, symbol, score, score_unweighted, n_evidence, evidence, where(is.numeric))
 
   # predictions to save (max gene per CS)
   predictions <- scores %>%
     # filter to max score per CS-gene pair
     dplyr::group_by(cs, symbol) %>%
-    dplyr::filter(score == max(score)) %>%
+    dplyr::filter(score == max(score)) %>% # TODO: this will not get all unweighted maximums! must fix
     # annotate max gene per CS
     dplyr::group_by(cs) %>%
     dplyr::mutate(max = score == max(score)) %>%
     # order
-    dplyr::select(cs, symbol, score, max) %>%
+    dplyr::select(chrom:end, cs, symbol, score, max) %>%
     dplyr::arrange(-score)
 
   # write tables
@@ -273,17 +287,17 @@ predict_target_genes <- function(trait = NULL,
   # Generate PR curves (model performance metric)
   performance <- scores %>%
     # get performance
-    get_PR(txv_master, drivers, c("score", dplyr::starts_with(names(master)))) %>%
+    get_PR(txv_master, drivers, c(dplyr::starts_with("score"),
+                                  dplyr::starts_with(names(master)))) %>%
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
   pdf(out$PR, height = 10, width = 20, onefile = T)
-  performance$PR %>%
+  print(performance$PR %>%
     dplyr::group_by(prediction_method, prediction_type) %>%
     plot_PR(colour = prediction_method) +
-    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")")) +
-    ggplot2::theme(legend.position = "none")
-  performance$PR %>%
+    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")")))
+  print(performance$PR %>%
     dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
     dplyr::filter(prediction_type == "max") %>%
     dplyr::distinct() %>%
@@ -294,7 +308,7 @@ predict_target_genes <- function(trait = NULL,
                                  fill = level)) +
     ggplot2::geom_col() +
     ggplot2::labs(x = "Predictor", y = "PR AUC") +
-    ggplot2::coord_flip()
+    ggplot2::coord_flip())
   dev.off()
   }
 

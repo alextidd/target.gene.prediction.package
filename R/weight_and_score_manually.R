@@ -23,7 +23,7 @@ weight_and_score_manually <- function(MA,
   # get all possible weights
   model_weights <- to_add %>%
     sapply(function(x){
-      seq(1, 100,
+      seq(0, 1,
           length = ifelse(is.null(n_unique_manual_weights), length(to_add), n_unique_manual_weights))
     },
     simplify = F, USE.NAMES = T) %>%
