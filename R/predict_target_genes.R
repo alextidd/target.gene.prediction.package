@@ -24,8 +24,8 @@
 predict_target_genes <- function(trait = NULL,
                                  tissue_of_interest = NULL,
                                  outDir = "out",
-                                 variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed",
-                                 driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt",
+                                 variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
+                                 driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt",
                                  referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/",
                                  variant_to_gene_max_distance = 2e6,
                                  min_proportion_of_variants_in_top_DHSs = 0.05,
@@ -40,9 +40,13 @@ predict_target_genes <- function(trait = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # setwd("/working/lab_georgiat/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
+  # setwd("/working/lab_georgiat/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
   # for testing externally:
   # library(devtools) ; setwd("/working/lab_georgiat/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
+
+  # 9.12.2021 run params
+  # run 1: # setwd("/working/lab_georgiat/alexandT/tgp") ; trait = "BC_expanded" ; min_proportion_of_variants_in_top_DHSs = 0.045 ; variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC_expanded/BC_expanded.VariantList.bed" ;
+  # run 2: # setwd("/working/lab_georgiat/alexandT/tgp") ; do_all_cells = T
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -51,11 +55,11 @@ predict_target_genes <- function(trait = NULL,
   if(do_XGBoost){do_scoring <- T}
 
   # define the output
-  dir.create(outDir, recursive = T, showWarnings = F)
   out <- list()
   prefix <- ifelse(!is.null(trait), paste0(trait, "_"), "")
-  out$Base <- paste0(outDir,"/", prefix) %>%
-    { if(do_all_cells) paste0(., "all_cells/", prefix) else paste0(., "enriched_cells/", prefix)}
+  out$Base <- paste0(outDir,"/", trait, "/") %>%
+  { if(do_all_cells) paste0(., "all_cells/") else paste0(., "enriched_cells/")}
+  dir.create(out$Base, recursive = T, showWarnings = F)
   out$Annotations <- paste0(out$Base, "target_gene_annotations.tsv")
   out$Predictions <- paste0(out$Base, "target_gene_predictions.tsv")
   out$Performance <- paste0(out$Base, "performance.tsv")
@@ -67,7 +71,7 @@ predict_target_genes <- function(trait = NULL,
     variantsFile,
     metadata_cols = c("variant", "cs"))
 
-  # import user-provided drivers and check that all symbols are in the GENCODE data
+  # import user-provided drivers and check that all symbols are in the GENCODE database
   cat("Importing driver genes...\n")
   drivers <- read_tibble(driversFile)$V1 %>%
     check_driver_symbols(., driversFile)
@@ -158,7 +162,8 @@ predict_target_genes <- function(trait = NULL,
   txv <- get_txv_level_annotations(variants,
                                    txv_master,
                                    variant_to_gene_max_distance,
-                                   enriched)
+                                   enriched,
+                                   REVEL)
 
   # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
   gxv <- get_gxv_level_annotations(txv,
@@ -341,11 +346,11 @@ predict_target_genes <- function(trait = NULL,
   }
 
   # 9) SAVE ===
-  # save(master,
-  #      predictions,
-  #      performance,
-  #      xgb1,
-  #      file = paste0(out$Base, "data.Rdata"))
+  save(master,
+       predictions,
+       performance,
+       xgb1,
+       file = paste0(out$Base, "data.Rdata"))
 
   return(MA)
 }

@@ -42,6 +42,11 @@ get_enriched <- function(variants,
       dplyr::count(name = "n_intersections") %>%
       dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant)) %>%
       dplyr::filter(n_intersections/n_variants > min_proportion_of_variants_in_top_DHSs)
+    if(nrow(thresholded_counts) == 0){
+      stop(message("No cell types had more than ",
+                   min_proportion_of_variants_in_top_DHSs*100, "% of ", trait,
+                   " variants in their most specific DHSs. Choose a lower `min_proportion_of_variants_in_top_DHSs` cut-off or specify a `tissue_of_interest` to skip this enrichment step."))
+    }
 
     enriched[["celltypes"]] <- bed_fisher_grouped(
       bedA = specific_DHSs,

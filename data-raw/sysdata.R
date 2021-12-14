@@ -22,9 +22,15 @@ ChrSizesFile <- "/working/lab_georgiat/alexandT/target_gene_prediction_paper/dat
 ChrSizes <- read_tibble(ChrSizesFile)
 names(ChrSizes) <- c("chrom", "size")
 
+# REVEL
+REVELFile <- "/working/lab_georgiat/alexandT/target_gene_prediction_paper/output/REVEL/exonic_deleterious_SNVs.bed"
+REVEL <- import_BED(REVELFile, metadata_cols = c("variant", "ensts"))
+
 usethis::use_data(introns,
                   exons,
                   promoters,
                   TSSs,
                   ChrSizes,
-                  internal = TRUE)
+                  REVEL,
+                  internal = TRUE,
+                  overwrite = TRUE)
