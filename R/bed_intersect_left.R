@@ -26,6 +26,8 @@ bed_intersect_left <- function(bedA, bedB, suffix = c("",""), keepBcoords = T, k
   # Left join intersect
   bedA %>%
     valr::bed_intersect(bedB) %>%
+    # only allow intersections with zero-overlaps if the feature is an indel (start == end)
+    dplyr::filter(.overlap > 0 | start.x == end.x | start.y == end.y) %>%
     dplyr::select(-.overlap) %>%
     dplyr::rename(start = start.x, end = end.x) %>%
     { if(!keepBcoords) dplyr::select(., -c("start.y", "end.y")) else . } %>%

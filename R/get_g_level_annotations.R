@@ -5,10 +5,11 @@ get_g_level_annotations <- function(txv_master,
   g <- list()
 
   # gene expressed
-  g$g_expression <- enriched$expression %>%
+  g$expression <- enriched$expression %>%
     tibble::as_tibble(rownames = "ensg") %>%
     dplyr::inner_join(txv_master %>% dplyr::distinct(ensg))
 
   # return
+  names(g) <- paste0("g_", names(g))
   return(g)
 }

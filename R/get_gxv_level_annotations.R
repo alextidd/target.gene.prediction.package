@@ -9,7 +9,7 @@ get_gxv_level_annotations <- function(txv,
   gxv <- list()
 
   # variant-gene closest distance (among all of the gene's transcripts' TSSs)
-  gxv$gxv_inv_distance_rank <- txv$txv_inv_distance %>%
+  gxv$inv_distance_rank <- txv$txv_inv_distance %>%
     dplyr::left_join(TSSs %>% dplyr::select(enst, symbol)) %>%
     # Rank for each variant-gene pair
     dplyr::group_by(symbol) %>%
@@ -23,15 +23,34 @@ get_gxv_level_annotations <- function(txv,
       )
 
   # variants in specific DHSs x genes in specific DHSs
-  gxv$gxv_specific_DHSs_closest_specific_genes <- variants %>%
+  gxv$specific_DHSs_closest_specific_genes <- variants %>%
     # intersect with specific_DHSs_closest_specific_genes
     bed_intersect_left(enriched$specific_DHSs_closest_specific_genes, keepBcoords = F) %>%
     tidyr::pivot_longer(-c(chrom:cs), names_to = "celltype", values_to = "ensg") %>%
     dplyr::filter(!is.na(ensg)) %>%
     dplyr::distinct(variant, celltype, ensg) %>%
-    # score connections
     dplyr::mutate(value = 1) %>%
     tidyr::pivot_wider(id_cols = -c(celltype, value),
                        names_from = celltype, values_from = value)
+
+  # REVEL #
+  intersect_REVEL <- function(variants, revel_df, ...){
+    variants %>%
+      dplyr::inner_join(revel_df, by = c("chrom" = "chrom", "end" = "position")) %>%
+      tidyr::separate_rows(ensgs) %>%
+      dplyr::transmute(variant, ensg = ensgs, ...)
+  }
+
+  # missense variants
+  gxv$missense <- variants %>% intersect_REVEL(missense, value = score)
+
+  # nonsense variants
+  gxv$nonsense <- variants %>% intersect_REVEL(nonsense)
+
+  # splice site variants
+  gxv$splicesite <- variants %>% intersect_REVEL(splicesite)
+
+  # prefix names
+  names(gxv) <- paste0("gxv_", names(gxv))
   return(gxv)
 }

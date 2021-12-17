@@ -18,8 +18,7 @@ get_txd_level_annotations <- function(ensts_near_vars,
     dplyr::filter(overlap | overlap & dist == min(dist) | dist == min(dist)) %>%
     dplyr::ungroup() %>%
     dplyr::transmute(DHS = DHS.y,
-                     enst = enst.x,
-                     value = 1)
+                     enst = enst.x)
 
   # return
   names(txd) <- paste0("txd_", names(txd))

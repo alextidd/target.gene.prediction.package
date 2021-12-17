@@ -162,8 +162,7 @@ predict_target_genes <- function(trait = NULL,
   txv <- get_txv_level_annotations(variants,
                                    txv_master,
                                    variant_to_gene_max_distance,
-                                   enriched,
-                                   REVEL)
+                                   enriched)
 
   # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
   gxv <- get_gxv_level_annotations(txv,
@@ -233,13 +232,17 @@ predict_target_genes <- function(trait = NULL,
   weights <- list(
     txv_TADs = 1,
     txv_inv_distance = 1,
-    gxv_specific_DHSs_closst_specific_genes = 1,
+    gxv_specific_DHSs_closest_specific_genes = 1,
     txv_intron = 1,
+    # gxv_missense = 1,
+    # gxv_nonsense = 1,
+    # gxv_splicesite = 1,
     t_DHSs_signal = 1,
     g_expression = 1,
     v_inv_n_genes = 0.66,
     c_inv_n_variants = 0.66
   ) # ALL OTHERS = 0.33
+  # weights <- list() # for equal weights
 
   # Generating a single score for each variant-transcript pair, with evidence
   # sum(all non-celltype-specific values, enriched celltype-specific annotations)

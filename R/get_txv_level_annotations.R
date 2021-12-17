@@ -28,8 +28,7 @@ get_txv_level_annotations <- function(variants,
   # closest variant-TSS method
   txv$closest <- distance %>%
     dplyr::filter(pair.inverse_distance_rank == 1) %>%
-    dplyr::transmute(variant, enst,
-                     value = 1)
+    dplyr::transmute(variant, enst)
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
@@ -54,7 +53,7 @@ get_txv_level_annotations <- function(variants,
         #dplyr::summarise(value = sum(value)) %>%
         tidyr::pivot_wider(id_cols = c(variant, enst),
                            names_from = celltype,
-                           values_from = value, values_fn = length)
+                           values_from = value)
     }, simplify = F, USE.NAMES = T)
   names(txv_contact_scores) <- paste0("contact_", names(txv_contact_scores))
   txv <- c(txv, txv_contact_scores)
@@ -74,8 +73,7 @@ get_txv_level_annotations <- function(variants,
       promoters,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
-                     enst,
-                     value = 1)
+                     enst)
 
   # get variants at promoters - score by sum of signal and specificity per celltype at the DHS (~promoter activity)
   txv$promoter_DHS_bins_sum <- variants %>%
@@ -102,8 +100,7 @@ get_txv_level_annotations <- function(variants,
       introns, .,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
-                     enst,
-                     value = 1)
+                     enst)
 
   # exonic (coding) variants
   txv$exon <- variants %>%
@@ -112,29 +109,9 @@ get_txv_level_annotations <- function(variants,
       exons, .,
       keepBcoords = F, keepBmetadata = T) %>%
     dplyr::transmute(variant,
-                     enst,
-                     value = 1)
+                     enst)
 
-  # deleterious exonic variants
-  txv$revel <- variants %>%
-    dplyr::inner_join(REVEL, by = "variant")
-  # TODO: add one for nonsense coding mutations (where REVEL score == ".")
-
-  # # TADs FIX!! TODO
-  # TADs_w_ID <- TADs$BRST.T47D.CNCR %>%
-  #   dplyr::mutate(TAD = paste0("i.", dplyr::row_number()))
-  # txv$TADs <- dplyr::full_join(
-  #   bed_intersect_left(
-  #     variants, TADs_w_ID, keepBcoords = F) %>%
-  #     dplyr::select(variant, TAD),
-  #   bed_intersect_left(
-  #     TSSs, TADs_w_ID, keepBcoords = F) %>%
-  #     dplyr::select(enst, TAD)
-  # ) %>%
-  #   dplyr::transmute(variant, enst, value = 1)
-  # TODO: fix issue - non-exclusive TADs from Rao datasets
-  # valr::bed_intersect(variants, TADs_w_ID) %>%
-  #   dplyr::filter(variant.x == "rs11572421:217200580:C:T")
+  # TADs
   TADs_w_ID <- enriched$TADs %>%
     purrr::map(~ dplyr::mutate(., TAD = paste0("i.", dplyr::row_number()))) %>%
     dplyr::bind_rows(.id = "celltype")
