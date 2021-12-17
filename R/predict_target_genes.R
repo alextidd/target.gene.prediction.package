@@ -58,7 +58,8 @@ predict_target_genes <- function(trait = NULL,
   out <- list()
   prefix <- ifelse(!is.null(trait), paste0(trait, "_"), "")
   out$Base <- paste0(outDir,"/", trait, "/") %>%
-  { if(do_all_cells) paste0(., "all_cells/") else paste0(., "enriched_cells/")}
+  { if(do_all_cells) paste0(., "all_cells/") else paste0(., "enriched_cells/")} %>%
+    paste0(format(Sys.time(), "%Y%m%d_%H%M%S"), "/") # timestamp
   dir.create(out$Base, recursive = T, showWarnings = F)
   out$Annotations <- paste0(out$Base, "target_gene_annotations.tsv")
   out$Predictions <- paste0(out$Base, "target_gene_predictions.tsv")
@@ -242,7 +243,6 @@ predict_target_genes <- function(trait = NULL,
     v_inv_n_genes = 0.66,
     c_inv_n_variants = 0.66
   ) # ALL OTHERS = 0.33
-  # weights <- list() # for equal weights
 
   # Generating a single score for each variant-transcript pair, with evidence
   # sum(all non-celltype-specific values, enriched celltype-specific annotations)

@@ -1,12 +1,12 @@
 matricise_by_pair <- function(df,
                               txv_master){
   # add value = 1 if there is no value (numeric) column
-  if(df %>% dplyr::select(where(is.numeric)) %>% ncol == 0){df$value <- 1}
+  if(df %>% dplyr::ungroup() %>% dplyr::select(where(is.numeric)) %>% ncol == 0){df$value <- 1}
 
   # MA needs all rows in the same order
   mat <- df %>%
     dplyr::rowwise() %>%
-    # aggregate per pair - maximum across samples
+    # aggregate per pair - maximum across samples # TODO: compare max vs mean across samples
     dplyr::mutate(value = max(dplyr::c_across(where(is.numeric)), na.rm = T)) %>%
     dplyr::ungroup() %>%
     dplyr::right_join(txv_master, by = intersect(names(txv_master), names(df))) %>%
