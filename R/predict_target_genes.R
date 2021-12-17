@@ -318,6 +318,9 @@ predict_target_genes <- function(trait = NULL,
     ggplot2::labs(x = "Predictor", y = "PR AUC") +
     ggplot2::coord_flip())
   dev.off()
+
+  # write table
+  write_tibble(performance$summary, filename = out$Performance)
   }
 
   # 8) XGBoost MODEL TRAINING ======================================================================================================
@@ -359,57 +362,5 @@ predict_target_genes <- function(trait = NULL,
 }
 
 
-
-
-# # scores for final cs|gene predictions
-# gxc_predictions <- txv_scores %>%
-#   dplyr::left_join(txv_master %>% dplyr::select(pair, symbol, cs)) %>%
-#   # filter to the maximum-scoring pair for each CS-gene combination
-#   dplyr::group_by(cs, symbol) %>%
-#   dplyr::filter(score == max(score)) %>%
-#   # find the maximum-scoring gene for each CS
-#   dplyr::group_by(cs) %>%
-#   dplyr::mutate(max_score = as.numeric(score == max(score))) %>%
-#   # find predictions (score > mean(score))
-#   dplyr::ungroup() %>%
-#   dplyr::mutate(prediction = as.numeric(score > mean(score))) %>%
-#   # calculate number of pieces of pair-supporting evidence
-#   dplyr::mutate(n_evidence = stringr::str_count(evidence, ",") + 1) %>%
-#   # finalise columns
-#   dplyr::select(cs, symbol, score, prediction, max_score, n_evidence, evidence)
-# # Generate PR curves (model performance metric)
-# performance <- get_PR(predictions, score)
-# # PR of each individual annotation (columns of master)
-# performance_all <- get_PR(master, dplyr::all_of(annotation_cols))
-# # add annotation level info
-# performance_all$PR <- performance_all$PR %>% dplyr::mutate(level = sub("_.*", "", prediction_type))
-#
-# pdf(out$PR, height = 10, onefile = T)
-# performance$PR %>% plot_PR(colour = prediction_type)
-# performance$PR %>%
-#   dplyr::select(prediction_type, PR_AUC) %>%
-#   dplyr::distinct() %>%
-#   ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_type, PR_AUC),
-#                                y = PR_AUC)) +
-#   ggplot2::geom_col() +
-#   ggplot2::coord_flip() +
-#   ggplot2::labs(x = "Predictor", y = "PR PR_AUC")
-# performance_all$PR %>%
-#   dplyr::filter(PR_AUC == max(PR_AUC)) %>%
-#   plot_PR(colour = prediction_method) +
-#   ggplot2::theme(legend.position = "none")
-# performance_all$PR %>%
-#   dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
-#   dplyr::filter(prediction_type == "score") %>%
-#   dplyr::distinct() %>%
-#   dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
-#   dplyr::distinct() %>%
-#   ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, PR_AUC),
-#                                y = PR_AUC,
-#                                fill = level)) +
-#   ggplot2::geom_col() +
-#   ggplot2::labs(x = "Predictor", y = "PR PR_AUC") +
-#   ggplot2::facet_wrap( ~ level, scales = "free_x")
-# dev.off()
 
 

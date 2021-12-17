@@ -19,7 +19,8 @@ get_PR <- function(scores, txv_master, drivers, ...){
     dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
     # get predictions only in CSs with a driver within max prediction distance for performance evaluation
     get_testable() %>%
-    dplyr::select(cs, symbol, ..., driver) %>%
+    dplyr::select(cs, symbol, driver,
+                  ...) %>%
     dplyr::distinct() %>%
     # gather prediction method columns
     tidyr::pivot_longer(names_to = "prediction_method",
@@ -40,6 +41,7 @@ get_PR <- function(scores, txv_master, drivers, ...){
     tidyr::pivot_longer(c(score, max, prediction),
                         names_to = "prediction_type",
                         values_to = "prediction")
+
 
   # get summary statistics (various performance metrics)
   performance$summary <- pred %>%
@@ -81,12 +83,12 @@ get_PR <- function(scores, txv_master, drivers, ...){
                        dplyr::select(prediction_method, prediction_type,
                                      PR_AUC = .estimate)) %>%
     dplyr::ungroup()
-  
+
   # Add area under curve metric to summary
   performance$summary <- performance$summary %>%
-    dplyr::left_join(performance$PR %>% dplyr::select(prediction_method,
-                                                      prediction_type,
-                                                      PR_AUC))
+    dplyr::left_join(performance$PR %>% dplyr::distinct(prediction_method,
+                                                        prediction_type,
+                                                        PR_AUC))
   return(performance)
 
 }
