@@ -133,6 +133,7 @@ predict_target_genes <- function(trait = NULL,
                     start.variant = start.variant + variant_to_gene_max_distance,
                     end.variant = end.variant - variant_to_gene_max_distance,
                     start.TSS, end.TSS,
+                    distance = abs(end.variant - end.TSS),
                     variant = variant.variant,
                     pair = paste0(variant.variant, "|", enst.TSS),
                     cs = cs.variant,
@@ -166,8 +167,8 @@ predict_target_genes <- function(trait = NULL,
                                    enriched)
 
   # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
-  gxv <- get_gxv_level_annotations(txv,
-                                   variants,
+  gxv <- get_gxv_level_annotations(variants,
+                                   txv_master,
                                    DHSs_master,
                                    enriched)
 
@@ -202,34 +203,35 @@ predict_target_genes <- function(trait = NULL,
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
 
   # 5) WEIGHTING ======================================================================================================
-  # MANUAL WEIGHTING ===
-  if(do_manual_weighting){
-  celltype_of_interest <- unique(enriched$celltypes$name)
-  if(length(celltype_of_interest) == 1){
-    to_add <- c("v_DHSs_signal",
-                "v_DHSs_specificity",
-                "txv_contact_ChIAPET_binary",
-                "txc_n_multicontact_binary_ChIAPET",
-                "gxv_specific_DHSs_closest_specific_genes",
-                "txv_exon")
-    to_multiply <- c("txv_TADs",
-                     "g_expression")
-    # celltype_of_interest = "BRST.HMEC" ; n_unique_manual_weights = 1
-    manual_models <- weight_and_score_manually(MA,
-                                               celltype_of_interest,
-                                               txv_master,
-                                               drivers,
-                                               to_add,
-                                               to_multiply,
-                                               n_unique_manual_weights)
-    write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))
-  } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
-  }
+  # # MANUAL WEIGHTING ===
+  # if(do_manual_weighting){
+  # celltype_of_interest <- unique(enriched$celltypes$name)
+  # if(length(celltype_of_interest) == 1){
+  #   to_add <- c("v_DHSs_signal",
+  #               "v_DHSs_specificity",
+  #               "txv_contact_ChIAPET_binary",
+  #               "txc_n_multicontact_binary_ChIAPET",
+  #               "gxv_specific_DHSs_closest_specific_genes",
+  #               "txv_exon")
+  #   to_multiply <- c("txv_TADs",
+  #                    "g_expression")
+  #   # celltype_of_interest = "BRST.HMEC" ; n_unique_manual_weights = 1
+  #   manual_models <- weight_and_score_manually(MA,
+  #                                              celltype_of_interest,
+  #                                              txv_master,
+  #                                              drivers,
+  #                                              to_add,
+  #                                              to_multiply,
+  #                                              n_unique_manual_weights)
+  #   write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))
+  # } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
+  # }
 
   # 6) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
 
+  # declare weights (ALL OTHERS = 0.33)
   weights <- list(
     txv_TADs = 1,
     txv_inv_distance = 1,
@@ -242,36 +244,57 @@ predict_target_genes <- function(trait = NULL,
     g_expression = 1,
     v_inv_n_genes = 0.66,
     c_inv_n_variants = 0.66
-  ) # ALL OTHERS = 0.33
+  )
 
   # Generating a single score for each variant-transcript pair, with evidence
-  # sum(all non-celltype-specific values, enriched celltype-specific annotations)
-  scores <- names(master) %>%
-    lapply(function(name){
+  # mean(all non-celltype-specific values, enriched celltype-specific annotations) * (expression binary)
+  # master %>%
+  #   .[names(master) != "g_expression"] %>%
+  #   Reduce(`+`, .) %>%
+  #   list(., master[["g_expression"]]) %>%
+  #   Reduce(`*`, .)
+
+  scores <- master %>% names %>%
+    sapply(function(name) {
       # weight annotations
       master[[name]] %>%
         tibble::as_tibble(rownames = "pair") %>%
-        dplyr::mutate(annotation = name,
-                      value_unweighted = value,
-                      value = value * { if(name %in% names(weights)) weights[[name]] else 0.33 })
-    }) %>%
-    purrr::reduce(dplyr::bind_rows) %>%
+        dplyr::mutate(
+          value_unweighted = value,
+          value = value * { if (name %in% names(weights)) weights[[name]] else 0.33 }
+        )
+    }, USE.NAMES = T, simplify = F) %>%
+    dplyr::bind_rows(.id = "prediction_method") %>%
+    # calculate score (mean annotation value)
     dplyr::group_by(pair) %>%
-    # create comma-concatenated list of non-zero annotations contributing to the scores of each pair
-    dplyr::mutate(score = mean(value),
-                  score_unweighted = mean(value_unweighted),
-                  evidence = paste(annotation, collapse = ","),
-                  n_evidence = dplyr::n_distinct(annotation)) %>%
+    dplyr::mutate(
+      score = mean(value),
+      score_unweighted = mean(value_unweighted)
+    ) %>%
     dplyr::ungroup() %>%
-    # spread out annotations again
-    tidyr::pivot_wider(id_cols = c(pair, score, score_unweighted, evidence, n_evidence),
-                       names_from = annotation,
-                       values_from = value) %>%
+    # spread out annotation values
+    tidyr::pivot_wider(
+      id_cols = c(pair, score, score_unweighted),
+      names_from = prediction_method,
+      values_from = value
+    ) %>%
     # get CSs and symbols
-    dplyr::left_join(txv_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
-                                                  pair, cs, symbol)) %>%
+    dplyr::right_join(
+      txv_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
+                                   pair, cs, symbol)
+    ) %>%
+    # multiply score by expression binary
+    dplyr::mutate(
+      score_expressed = score * g_expression
+    ) %>%
     # select columns
-    dplyr::select(chrom:end, cs, symbol, score, score_unweighted, n_evidence, evidence, where(is.numeric))
+    dplyr::select(
+      chrom, start, end,
+      cs,
+      symbol,
+      score,
+      where(is.numeric)
+    )
 
   # predictions to save (max gene per CS)
   predictions <- scores %>%
@@ -295,16 +318,12 @@ predict_target_genes <- function(trait = NULL,
   # Generate PR curves (model performance metric)
   performance <- scores %>%
     # get performance
-    get_PR(txv_master, drivers, c(dplyr::starts_with("score"),
-                                  dplyr::starts_with(names(master)))) %>%
+    get_PR(txv_master, drivers) %>%
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
   pdf(out$PR, height = 10, width = 20, onefile = T)
-  print(performance$PR %>%
-    dplyr::group_by(prediction_method, prediction_type) %>%
-    plot_PR(colour = prediction_method) +
-    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")")))
+  print(plot_PR(performance))
   print(performance$PR %>%
     dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
     dplyr::filter(prediction_type == "max") %>%

@@ -10,24 +10,23 @@ get_txv_level_annotations <- function(variants,
   distance <- txv_master %>%
     dplyr::group_by(variant) %>%
     # Calculate inverse of the absolute bp distance for each variant-transcript pair
-    dplyr::mutate(pair.distance = abs(start.variant - start.TSS),
-                  pair.inverse_distance = 1/pair.distance,
+    dplyr::mutate(inv_distance = 1/distance,
                   # ranking transcript TSSs (if two transcript TSSs are equidistant to the variant, they will receive the same, lower rank)
-                  pair.inverse_distance_rank = 1/rank(pair.distance, ties.method = "min"))
+                  inv_distance_rank = 1/rank(distance, ties.method = "min"))
 
   # variant-TSS inverse distance score method
   txv$inv_distance <- distance %>%
     dplyr::transmute(variant, enst,
-                     value = pair.inverse_distance)
+                     value = inv_distance)
 
   # variant-TSS distance rank method
   txv$inv_distance_rank <- distance %>%
     dplyr::transmute(variant, enst,
-                     value = pair.inverse_distance_rank)
+                     value = inv_distance_rank)
 
   # closest variant-TSS method
   txv$closest <- distance %>%
-    dplyr::filter(pair.inverse_distance_rank == 1) %>%
+    dplyr::filter(inv_distance_rank == 1) %>%
     dplyr::transmute(variant, enst)
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs

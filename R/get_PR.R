@@ -5,48 +5,53 @@
 #' @param scores scores object passed from predict_target_genes
 #' @param txv_master txv_master object passed from predict_target_genes
 #' @param drivers drivers object passed from predict_target_genes
-#' @param ... Columns to use as predictors (e.g. score column, values of individual annotation columns, ...)
 #'
 #' @return `PR` tibble
 #' @export
-get_PR <- function(scores, txv_master, drivers, ...){
+get_PR <- function(scores, txv_master, drivers){
 
   performance <- list()
 
-  # score, prediction and max
-  pred <- scores %>%
+  # get all testable CS-gene pairs
+  testable <- txv_master %>%
     # add drivers
     dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
     # get predictions only in CSs with a driver within max prediction distance for performance evaluation
     get_testable() %>%
-    dplyr::select(cs, symbol, driver,
-                  ...) %>%
-    dplyr::distinct() %>%
-    # gather prediction method columns
-    tidyr::pivot_longer(names_to = "prediction_method",
-                        values_to = "score",
-                        ...) %>%
-    # replace NAs with 0s
-    dplyr::mutate(score = score %>% tidyr::replace_na(0)) %>%
-    # get maximum score per CS-x-gene-x-method
-    dplyr::group_by(prediction_method, cs, symbol) %>%
-    dplyr::filter(score == max(score)) %>%
-    # find maximum scoring gene per CS-x-method
-    dplyr::group_by(prediction_method, cs) %>%
-    dplyr::mutate(max = as.numeric((score == max(score) & score != 0))) %>%
-    dplyr::ungroup() %>%
-    # find positives (score > median(score)) overall
-    dplyr::mutate(prediction = as.numeric((score >= median(score) & score != 0))) %>%
-    # gather prediction type columns
-    tidyr::pivot_longer(c(score, max, prediction),
-                        names_to = "prediction_type",
-                        values_to = "prediction")
+    dplyr::distinct(cs, symbol, driver)
 
+  # score, max, max_score
+  pred <- scores %>%
+    dplyr::select(-c(chrom:end)) %>%
+    dplyr::right_join(testable) %>%
+    dplyr::group_by(cs, symbol, driver) %>%
+    # get maximum score per CS-x-gene-x-method
+    dplyr::summarise(
+      dplyr::across(where(is.numeric), ~ max(.x))
+    ) %>%
+    # gather prediction methods
+    tidyr::pivot_longer(
+      where(is.numeric),
+      names_to = "prediction_method",
+      values_to = "score"
+    ) %>%
+    # max prediction
+    dplyr::group_by(prediction_method, cs) %>%
+    dplyr::mutate(max = as.numeric(score == max(score) & score > 0),
+                  max_score = dplyr::case_when(max == 0 ~ 0,
+                                               TRUE ~ score)) %>%
+    # gather prediction types
+    tidyr::pivot_longer(
+      c(score, max_score, max),
+      names_to = "prediction_type",
+      values_to = "prediction"
+    ) %>%
+    dplyr::ungroup()
 
   # get summary statistics (various performance metrics)
   performance$summary <- pred %>%
     # score is not binary, cannot be summarised, filter out
-    dplyr::filter(prediction_type != "score") %>%
+    dplyr::filter(!grepl("score", prediction_type)) %>%
     dplyr::mutate(prediction = as.logical(prediction)) %>%
     dplyr::group_by(prediction_method, prediction_type) %>%
     dplyr::group_modify(
@@ -92,3 +97,8 @@ get_PR <- function(scores, txv_master, drivers, ...){
   return(performance)
 
 }
+
+
+
+
+

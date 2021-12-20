@@ -9,11 +9,10 @@ predict_target_genes(
   tissue_of_interest = NULL,
   outDir = "out",
  
-    variantsFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/BC.VariantList.bed",
+    variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
  
-    driversFile = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/breast_cancer_drivers_2021.txt",
- 
-    referenceDir = "/working/lab_georgiat/alexandT/target.gene.prediction.package/external_data/reference/",
+    driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt",
+  referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/",
   variant_to_gene_max_distance = 2e+06,
   min_proportion_of_variants_in_top_DHSs = 0.05,
   include_all_celltypes_in_the_enriched_tissue = T,

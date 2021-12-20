@@ -1,26 +1,22 @@
-get_gxv_level_annotations <- function(txv,
-                                      variants,
+get_gxv_level_annotations <- function(variants,
+                                      txv_master,
                                       DHSs_master,
-                                      enriched,
-                                      expression){
+                                      enriched){
 
   cat("Annotating gene x variant pairs...\n")
 
   gxv <- list()
 
   # variant-gene closest distance (among all of the gene's transcripts' TSSs)
-  gxv$inv_distance_rank <- txv$txv_inv_distance %>%
-    dplyr::left_join(TSSs %>% dplyr::select(enst, symbol)) %>%
-    # Rank for each variant-gene pair
-    dplyr::group_by(symbol) %>%
-    dplyr::mutate(closest_distance = max(value)) %>%
-    dplyr::distinct(variant, symbol, closest_distance) %>%
+  gxv$inv_distance_rank <- txv_master %>%
+    dplyr::group_by(variant, symbol) %>%
+    dplyr::summarise(distance = min(distance)) %>%
     dplyr::group_by(variant) %>%
     dplyr::transmute(
       symbol,
       variant,
-      value = 1/rank(closest_distance, ties.method = "min")
-      )
+      value = 1/rank(distance, ties.method = "min")
+    )
 
   # variants in specific DHSs x genes in specific DHSs
   gxv$specific_DHSs_closest_specific_genes <- variants %>%

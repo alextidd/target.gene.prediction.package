@@ -4,7 +4,7 @@
 \alias{get_PR}
 \title{Get PR statistics for the predictions}
 \usage{
-get_PR(scores, txv_master, drivers, ...)
+get_PR(scores, txv_master, drivers)
 }
 \arguments{
 \item{scores}{scores object passed from predict_target_genes}
@@ -12,8 +12,6 @@ get_PR(scores, txv_master, drivers, ...)
 \item{txv_master}{txv_master object passed from predict_target_genes}
 
 \item{drivers}{drivers object passed from predict_target_genes}
-
-\item{...}{Columns to use as predictors (e.g. score column, values of individual annotation columns, ...)}
 }
 \value{
 `PR` tibble
