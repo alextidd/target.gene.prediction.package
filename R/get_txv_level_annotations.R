@@ -2,7 +2,6 @@ get_txv_level_annotations <- function(variants,
                                       txv_master,
                                       variant_to_gene_max_distance,
                                       enriched) {
-  cat("Annotating transcript x variant pairs...\n")
 
   txv <- list()
 

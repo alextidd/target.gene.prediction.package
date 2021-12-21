@@ -12,7 +12,6 @@ import_BED <- function(bedfile, metadata_cols = NULL) {
   # silence "no visible binding" NOTE for data variables
   . <- NULL
 
-  cat("Importing BED file from ", bedfile, "\n")
   read_tibble(bedfile) %>%
     dplyr::rename_with(., ~ c("chrom", "start", "end"), 1:3) %>%
     { if(!is.null(metadata_cols)) dplyr::rename_with(., ~ metadata_cols, 4:(3 + length(metadata_cols))) else . } %>%

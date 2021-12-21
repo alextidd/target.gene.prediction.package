@@ -1,7 +1,6 @@
 get_v_level_annotations <- function(variants,
                                     enriched,
                                     txv_master){
-  cat("Annotating variants...\n")
 
   v <- list()
 

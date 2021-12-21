@@ -23,7 +23,7 @@ get_PR <- function(scores, txv_master, drivers){
   # score, max, max_score
   pred <- scores %>%
     dplyr::select(-c(chrom:end)) %>%
-    dplyr::right_join(testable) %>%
+    dplyr::right_join(testable, by = c("cs", "symbol")) %>%
     dplyr::group_by(cs, symbol, driver) %>%
     # get maximum score per CS-x-gene-x-method
     dplyr::summarise(
@@ -85,15 +85,19 @@ get_PR <- function(scores, txv_master, drivers){
     dplyr::left_join(PR_in %>%
                        # calculate AUPRC
                        yardstick::pr_auc(driver, prediction) %>%
-                       dplyr::select(prediction_method, prediction_type,
-                                     PR_AUC = .estimate)) %>%
+                       dplyr::select(prediction_method,
+                                     prediction_type,
+                                     PR_AUC = .estimate),
+                     by = c("prediction_method", "prediction_type")) %>%
     dplyr::ungroup()
 
   # Add area under curve metric to summary
   performance$summary <- performance$summary %>%
-    dplyr::left_join(performance$PR %>% dplyr::distinct(prediction_method,
-                                                        prediction_type,
-                                                        PR_AUC))
+    dplyr::left_join(performance$PR %>%
+                       dplyr::distinct(prediction_method,
+                                       prediction_type,
+                                       PR_AUC),
+                     by = c("prediction_method", "prediction_type"))
   return(performance)
 
 }

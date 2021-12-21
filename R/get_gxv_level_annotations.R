@@ -3,8 +3,6 @@ get_gxv_level_annotations <- function(variants,
                                       DHSs_master,
                                       enriched){
 
-  cat("Annotating gene x variant pairs...\n")
-
   gxv <- list()
 
   # variant-gene closest distance (among all of the gene's transcripts' TSSs)

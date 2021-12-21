@@ -1,6 +1,5 @@
 get_t_level_annotations <- function(TSSs,
                                     enriched){
-  cat("Annotating transcripts...\n")
 
   t <- list()
 

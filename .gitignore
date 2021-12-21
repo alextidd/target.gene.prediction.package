@@ -4,5 +4,4 @@
 reference_data/
 example_data/
 out/
-tmp/
-log
+test_run.R

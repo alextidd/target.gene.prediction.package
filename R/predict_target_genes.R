@@ -10,13 +10,13 @@
 #' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
 #' @param min_proportion_of_variants_in_top_DHSs A threshold proportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
-#' @param include_all_celltypes_in_the_enriched_tissue If TRUE, the package will combine annotations across all available cell types within the enriched tissue, not just those in the exact enriched cell type.
 #' @param do_all_cells If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
 #' @param do_manual_weighting If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.
 #' @param n_unique_manual_weights The number of unique weights for the do_manual_weighting chunk to consider. If NULL, the chunk will consider as many unique weights as there are to_add components. Default is NULL.
 #' @param do_scoring If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.
 #' @param do_performance If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting drivers as the targets of nearby variants. Default is FALSE.
 #' @param do_XGBoost If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.
+#' @param do_timestamp If TRUE, will save output into a subdirectory timestamped with the data/time of the run.
 #' @param contact If you are repeatedly running predict_target_genes, you can load the `contact` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.
 #' @param DHSs If you are repeatedly running predict_target_genes, you can load the `DHSs` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.
 #' @return A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).
@@ -29,20 +29,21 @@ predict_target_genes <- function(trait = NULL,
                                  referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/",
                                  variant_to_gene_max_distance = 2e6,
                                  min_proportion_of_variants_in_top_DHSs = 0.05,
-                                 include_all_celltypes_in_the_enriched_tissue = T,
                                  do_all_cells = F,
                                  do_manual_weighting = F,
                                  n_unique_manual_weights = NULL,
-                                 do_scoring = F,
-                                 do_performance = F,
+                                 do_scoring = T,
+                                 do_performance = T,
                                  do_XGBoost = F,
+                                 do_timestamp = F,
                                  contact = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # setwd("/working/lab_georgiat/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt" ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; include_all_celltypes_in_the_enriched_tissue = T ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; contact = NULL ; DHSs = NULL
+  # setwd("/working/lab_georgiat/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
+  # contact = NULL ; DHSs = NULL
   # for testing externally:
-  # library(devtools) ; setwd("/working/lab_georgiat/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", include_all_celltypes_in_the_enriched_tissue = F, contact = contact, DHSs = DHSs)
+  # library(devtools) ; setwd("/working/lab_georgiat/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, DHSs = DHSs)
 
   # 9.12.2021 run params
   # run 1: # setwd("/working/lab_georgiat/alexandT/tgp") ; trait = "BC_expanded" ; min_proportion_of_variants_in_top_DHSs = 0.045 ; variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC_expanded/BC_expanded.VariantList.bed" ;
@@ -59,7 +60,7 @@ predict_target_genes <- function(trait = NULL,
   prefix <- ifelse(!is.null(trait), paste0(trait, "_"), "")
   out$Base <- paste0(outDir,"/", trait, "/") %>%
   { if(do_all_cells) paste0(., "all_cells/") else paste0(., "enriched_cells/")} %>%
-    paste0(format(Sys.time(), "%Y%m%d_%H%M%S"), "/") # timestamp
+  { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . }
   dir.create(out$Base, recursive = T, showWarnings = F)
   out$Annotations <- paste0(out$Base, "target_gene_annotations.tsv")
   out$Predictions <- paste0(out$Base, "target_gene_predictions.tsv")
@@ -67,40 +68,40 @@ predict_target_genes <- function(trait = NULL,
   out$PR <- paste0(out$Base, "PrecisionRecall.pdf")
 
   # import the user-provided variants
-  cat("Importing variants...\n")
+  cat(" > Importing variants...\n")
   variants <- import_BED(
     variantsFile,
     metadata_cols = c("variant", "cs"))
 
   # import user-provided drivers and check that all symbols are in the GENCODE database
-  cat("Importing driver genes...\n")
+  cat(" > Importing driver genes...\n")
   drivers <- read_tibble(driversFile)$V1 %>%
     check_driver_symbols(., driversFile)
 
   # import the contact data
-  cat("Importing contact data...\n")
+  cat(" > Importing contact data...\n")
   if(is.null(contact)){contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))}
 
   # import the DHS binning data
-  cat("Importing DHS binning data...\n")
+  cat(" > Importing DHS binning data...\n")
   if(is.null(DHSs)){DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))}
   DHSs_master <- DHSs[[1]] %>%
     dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
 
   # import the expression data
-  cat("Importing RNA-seq expression data...\n")
+  cat(" > Importing RNA-seq expression data...\n")
   expression <- read.delim(paste0(referenceDir, "expression.tsv"))
 
   # import the TADs data
-  cat("Importing TAD data...\n")
+  cat(" > Importing TAD data...\n")
   TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
 
   # metadata for all annotations
   all_metadata <- read_tibble(paste0(referenceDir, "all_metadata.tsv"), header = T)
 
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
-  cat("1) Cell type enrichment...\n")
+  cat("1) Performing cell type enrichment...\n")
   enriched <- get_enriched(variants,
                            DHSs,
                            specific_DHSs_closest_specific_genes,
@@ -110,8 +111,7 @@ predict_target_genes <- function(trait = NULL,
                            all_metadata,
                            min_proportion_of_variants_in_top_DHSs,
                            tissue_of_interest,
-                           do_all_cells,
-                           include_all_celltypes_in_the_enriched_tissue)
+                           do_all_cells)
 
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
@@ -145,34 +145,41 @@ predict_target_genes <- function(trait = NULL,
   cat("3) Annotating enhancer-gene pairs...\n")
 
   # 3a) VARIANT-LEVEL INPUTS ====
+  cat(" > V\tAnnotating variants...\n")
   v <- get_v_level_annotations(variants,
                                enriched,
                                txv_master)
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
+  cat(" > T\tAnnotating transcripts...\n")
   t <- get_t_level_annotations(TSSs,
                                enriched)
 
   # 3c) GENE-LEVEL INPUTS ===
+  cat(" > G\tAnnotating genes...\n")
   g <- get_g_level_annotations(txv_master,
                                enriched)
 
-  # 3c) CS-LEVEL INPUTS ====
+  # 3d) CS-LEVEL INPUTS ====
+  cat(" > C\tAnnotating credible sets...\n")
   c <- get_c_level_annotations(variants)
 
-  # 3d) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
+  # 3e) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
+  cat(" > TxV\tAnnotating transcript x variant pairs...\n")
   txv <- get_txv_level_annotations(variants,
                                    txv_master,
                                    variant_to_gene_max_distance,
                                    enriched)
 
-  # 3e) GENE-X-VARIANT-LEVEL INPUTS ===
+  # 3f) GENE-X-VARIANT-LEVEL INPUTS ===
+  cat(" > GxV\tAnnotating gene x variant pairs...\n")
   gxv <- get_gxv_level_annotations(variants,
                                    txv_master,
                                    DHSs_master,
                                    enriched)
 
-  # 3f) TRANSCRIPT-X-CS-LEVEL INPUTS ====
+  # 3g) TRANSCRIPT-X-CS-LEVEL INPUTS ====
+  cat(" > TxC\tAnnotating transcript x credible set pairs...\n")
   txc <- get_txc_level_annotations(txv,
                                    variants)
 
@@ -182,19 +189,18 @@ predict_target_genes <- function(trait = NULL,
   # -> only variant-transcript combinations within 2Mb are included
   # -> pair ID rownames: variant|enst
   # Each annotation will be aggregated across samples, taking the maximum value per pair
-  cat("3) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
+  cat("4) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
   master <- c(v, t, g, c, txv, gxv, txc) %>%
     purrr::map(~ matricise_by_pair(., txv_master))
 
-  # MultiAssayExperiment
-  # colData
+  # MultiAssayExperiment colData
   colData <- master %>%
     lapply(colnames) %>%
     unlist %>%
     as.data.frame %>%
     dplyr::distinct() %>%
     dplyr::rename(name = ".") %>%
-    dplyr::left_join(all_metadata %>% dplyr::distinct(name, tissue)) %>%
+    dplyr::left_join(all_metadata %>% dplyr::distinct(name, tissue), by = "name") %>%
     tibble::column_to_rownames("name")
 
   # celltype-specific annotations have as many columns as there are annotated celltypes
@@ -237,9 +243,9 @@ predict_target_genes <- function(trait = NULL,
     txv_inv_distance = 1,
     gxv_specific_DHSs_closest_specific_genes = 1,
     txv_intron = 1,
-    # gxv_missense = 1,
-    # gxv_nonsense = 1,
-    # gxv_splicesite = 1,
+    gxv_missense = 1,
+    gxv_nonsense = 1,
+    gxv_splicesite = 1,
     t_DHSs_signal = 1,
     g_expression = 1,
     v_inv_n_genes = 0.66,
@@ -248,12 +254,6 @@ predict_target_genes <- function(trait = NULL,
 
   # Generating a single score for each variant-transcript pair, with evidence
   # mean(all non-celltype-specific values, enriched celltype-specific annotations) * (expression binary)
-  # master %>%
-  #   .[names(master) != "g_expression"] %>%
-  #   Reduce(`+`, .) %>%
-  #   list(., master[["g_expression"]]) %>%
-  #   Reduce(`*`, .)
-
   scores <- master %>% names %>%
     sapply(function(name) {
       # weight annotations
@@ -281,7 +281,8 @@ predict_target_genes <- function(trait = NULL,
     # get CSs and symbols
     dplyr::right_join(
       txv_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
-                                   pair, cs, symbol)
+                                   pair, cs, symbol),
+      by = "pair"
     ) %>%
     # multiply score by expression binary
     dplyr::mutate(
@@ -371,11 +372,11 @@ predict_target_genes <- function(trait = NULL,
   }
 
   # 9) SAVE ===
-  save(master,
-       predictions,
-       performance,
-       xgb1,
-       file = paste0(out$Base, "data.Rdata"))
+  # save(master,
+  #      predictions,
+  #      performance,
+  #      xgb1,
+  #      file = paste0(out$Base, "data.Rdata"))
 
   return(MA)
 }

@@ -1,5 +1,4 @@
 get_c_level_annotations <- function(variants) {
-  cat("Annotating credible sets...\n")
 
   c <- list()
 
