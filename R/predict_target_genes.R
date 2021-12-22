@@ -79,12 +79,17 @@ predict_target_genes <- function(trait = NULL,
     check_driver_symbols(., driversFile)
 
   # import the contact data
-  cat(" > Importing contact data...\n")
-  if(is.null(contact)){contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))}
+  if(is.null(contact)){
+    cat(" > Importing contact data...\n")
+    contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
+  }
 
   # import the DHS binning data
-  cat(" > Importing DHS binning data...\n")
-  if(is.null(DHSs)){DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))}
+  if(is.null(DHSs)){
+    cat(" > Importing DHS binning data...\n")
+    DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
+  }
+
   DHSs_master <- DHSs[[1]] %>%
     dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
@@ -335,7 +340,9 @@ predict_target_genes <- function(trait = NULL,
                                  y = PR_AUC,
                                  fill = level)) +
     ggplot2::geom_col() +
-    ggplot2::labs(x = "Predictor", y = "PR AUC") +
+    ggplot2::labs(title = out$Base %>% gsub("/", " ", .),
+                  x = "Predictor",
+                  y = "PR AUC") +
     ggplot2::coord_flip())
   dev.off()
 

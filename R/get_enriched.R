@@ -29,6 +29,8 @@ get_enriched <- function(variants,
     cat("Applying annotations from all available cell types (`do_all_cells` = T).\n")
     # Include all cells
     enriched[["celltypes"]] <- all_metadata
+    cat("All tissues: ") ; message(paste(unique(enriched$celltypes$tissue), collapse = ", "))
+    cat("All celltypes: ") ; message(paste(unique(enriched$celltypes$name), collapse = ", "))
 
   } else {
 
