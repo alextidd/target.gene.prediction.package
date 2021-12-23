@@ -13,9 +13,8 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 
 To simulate installing and loading the package during interactive development...
 ```{r load_all}
-setwd("/working/lab_georgiat/alexandT/tgp/")
-library(devtools)
-load_all()
+setwd("/working/lab_jonathb/alexandT/tgp/")
+devtools::load_all()
 ```
 
 This package was written using package development conventions from <https://r-pkgs.org/>. 
@@ -26,7 +25,7 @@ The functions are all documented, so once the package is loaded you can access t
 
 If you also want the external reference data within the package directory, you can copy it over to mirror my structure...
 ```{bash copy reference directories}
-MyPackageDir=/working/lab_georgiat/alexandT/tgp/
+MyPackageDir=/working/lab_jonathb/alexandT/tgp/
 YourPackageDir=path/to/your/copy/of/tgp/
 mkdir -p $YourPackageDir/{reference_data,example_data}/data
 cp -r $MyPackageDir/reference_data/data/* $YourPackageDir/reference_data/data/
@@ -37,9 +36,9 @@ To run `predict_target_genes()`...
 ```{r run master function}
 # These paths work if you copied across my structure, as above. The default paths are full paths to my files, so should work the same.
 MAE <- predict_target_genes(trait = "BC",
-                            outDir = "out/BC_enriched_cells/",
-                            variantsFile = "example_data/data/BC.VariantList.bed",
-                            driversFile = "example_data/data/BC.VariantList.bed",
+                            outDir = "out/",
+                            variantsFile = "example_data/data/BC/BC.VariantList.bed",
+                            driversFile = "example_data/data/BC/BC.Drivers.txt",
                             do_scoring = T,
                             do_performance = T,
                             do_XGBoost = T)
@@ -47,12 +46,12 @@ MAE <- predict_target_genes(trait = "BC",
 
 If you wish to run the internal code of the `R/predict_target_genes.R` script step-by-step for development and debugging, you can add its default arguments to your global environment...
 ```{r load default arguments}
-setwd("/working/lab_georgiat/alexandT/tgp/") ; library(devtools) ; load_all() 
+setwd("/working/lab_jonathb/alexandT/tgp/") ; library(devtools) ; load_all() 
 tissue_of_interest = NULL 
 trait="BC" 
-outDir = "out/BC_enriched_cells/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed" 
-driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt" 
-referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" 
+outDir = "out/" 
+variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" 
+driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" 
 variant_to_gene_max_distance = 2e6 
 min_proportion_of_variants_in_top_DHSs = 0.05 
 include_all_celltypes_in_the_enriched_tissue = T 
@@ -70,14 +69,14 @@ All functions in the package, unless generic, use the same object names as `pred
 If you are calling `predict_target_genes()` repeatedly in the same session, you can load the large reference objects `DHSs` and `contact` into the global environment once, and then pass them to the function pre-loaded. This prevents redundant re-loading with each call to `predict_target_genes()`.
 ```{r pre-load reference objects}
 # 1. load referenceDir objects
-referenceDir = "/working/lab_georgiat/alexandT/tgp/external_data/reference/"
-contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
-DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
+referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/"
+contact <- readRDS(paste0(referenceDir, "contact.rda"))
+DHSs <- readRDS(paste0(referenceDir, "DHSs.rda"))
 # 2. pass objects to predict_target_genes for quicker runtime
 MAE <- predict_target_genes(trait = "BC",
-                            outDir = "out/BC_enriched_cells/",
-                            variantsFile = "example_data/data/BC.VariantList.bed",
-                            driversFile = "example_data/data/BC.VariantList.bed",
+                            outDir = "out/",
+                            variantsFile = "example_data/data/BC/BC.VariantList.bed",
+                            driversFile = "example_data/data/BC/BC.VariantList.bed",
                             do_scoring = T,
                             do_performance = T,
                             do_XGBoost = T,
@@ -95,20 +94,20 @@ Smaller generic reference datasets (`ChrSizes`, `TSSs`, `exons`, `introns`, `pro
 #### External reference data
 Larger cell-type-specific reference datasets are stored as local files in  `reference_data/data/`. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible code to generate these files is in `reference_data/data-raw/`
 ```{r local reference directory, eval = T}
-list.files("/working/lab_georgiat/alexandT/tgp/reference_data/data/")
+list.files("/working/lab_jonathb/alexandT/tgp/reference_data/data/")
 ```
 
 ### User-provided data
-There are two required user-provided files for the `predict_target_genes` function: the list of trait drivers (the `driversFile` argument) amd the list of trait variants (the `variantsFile` argument). Example inputs can be found in my local `example_data/data/` directory. Full paths to these are set as the default arguments of the function.
+There are two required user-provided files for the `predict_target_genes()` function: the list of trait drivers (the `driversFile` argument) and the list of trait variants (the `variantsFile` argument). Example inputs can be found in my local `example_data/data/` directory. Full paths to these are set as the default arguments of the function.
 
 #### Trait variants 
 The variants file should be a BED file with metadata columns for the variant name and the credible set to which it belongs.
 ```{bash variantsFile structure, eval = T}
-head /working/lab_georgiat/alexandT/tgp/example_data/data/BC.VariantList.bed
+head /working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed
 ```
 
 #### Trait drivers
 The drivers file should be a file with a single column of driver gene symbols. These symbols should be GENCODE-compatible.
 ```{bash driversFile structure, eval = T}
-head /working/lab_georgiat/alexandT/tgp/example_data/data/breast_cancer_drivers_2021.txt
+head /working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt
 ```

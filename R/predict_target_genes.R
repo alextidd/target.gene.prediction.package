@@ -24,9 +24,9 @@
 predict_target_genes <- function(trait = NULL,
                                  tissue_of_interest = NULL,
                                  outDir = "out",
-                                 variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
-                                 driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt",
-                                 referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/",
+                                 variantsFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
+                                 driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt",
+                                 referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/",
                                  variant_to_gene_max_distance = 2e6,
                                  min_proportion_of_variants_in_top_DHSs = 0.05,
                                  do_all_cells = F,
@@ -40,14 +40,10 @@ predict_target_genes <- function(trait = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # setwd("/working/lab_georgiat/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
   # contact = NULL ; DHSs = NULL
   # for testing externally:
-  # library(devtools) ; setwd("/working/lab_georgiat/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, DHSs = DHSs)
-
-  # 9.12.2021 run params
-  # run 1: # setwd("/working/lab_georgiat/alexandT/tgp") ; trait = "BC_expanded" ; min_proportion_of_variants_in_top_DHSs = 0.045 ; variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC_expanded/BC_expanded.VariantList.bed" ;
-  # run 2: # setwd("/working/lab_georgiat/alexandT/tgp") ; do_all_cells = T
+  # library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, DHSs = DHSs)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -81,18 +77,18 @@ predict_target_genes <- function(trait = NULL,
   # import the contact data
   if(is.null(contact)){
     cat(" > Importing contact data...\n")
-    contact <- readRDS(paste0(referenceDir, "contact/contact.rda"))
+    contact <- readRDS(paste0(referenceDir, "contact.rda"))
   }
 
   # import the DHS binning data
   if(is.null(DHSs)){
     cat(" > Importing DHS binning data...\n")
-    DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda"))
+    DHSs <- readRDS(paste0(referenceDir, "DHSs.rda"))
   }
 
   DHSs_master <- DHSs[[1]] %>%
     dplyr::distinct(chrom, start, end, DHS)
-  specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "DHSs/specific_DHSs_closest_specific_genes.rda"))
+  specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "specific_DHSs_closest_specific_genes.rda"))
 
   # import the expression data
   cat(" > Importing RNA-seq expression data...\n")
@@ -100,7 +96,7 @@ predict_target_genes <- function(trait = NULL,
 
   # import the TADs data
   cat(" > Importing TAD data...\n")
-  TADs <- readRDS(paste0(referenceDir, "TADs/TADs.rda"))
+  TADs <- readRDS(paste0(referenceDir, "TADs.rda"))
 
   # metadata for all annotations
   all_metadata <- read_tibble(paste0(referenceDir, "all_metadata.tsv"), header = T)
