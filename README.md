@@ -3,7 +3,8 @@ TGP Tour
 Alexandra Tidd
 October 28, 2021
 
-## Interactive development
+Interactive development
+-----------------------
 
 To simulate installing and loading the package during interactive development...
 
@@ -84,7 +85,8 @@ MAE <- predict_target_genes(trait = "BC",
                             DHSs = DHSs)
 ```
 
-## Package data
+Package data
+------------
 
 This package will use both reference genomic annotation datasets and user-provided trait-specific datasets.
 
@@ -92,7 +94,7 @@ This package will use both reference genomic annotation datasets and user-provid
 
 #### Internal reference data
 
-Smaller generic reference datasets (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`.
+Smaller generic reference datasets, including chromosome sizes, GENCODE annotations and REVEL annotations (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`, `missense`, `nonsense`, `splicesite`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`.
 
 #### External reference data
 

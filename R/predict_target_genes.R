@@ -59,7 +59,8 @@ predict_target_genes <- function(trait = NULL,
   { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . }
   dir.create(out$Base, recursive = T, showWarnings = F)
   out$Annotations <- paste0(out$Base, "target_gene_annotations.tsv")
-  out$Predictions <- paste0(out$Base, "target_gene_predictions.tsv")
+  out$Predictions <- paste0(out$Base, "target_gene_predictions_full.tsv")
+  out$MaxPredictions <- paste0(out$Base, "target_gene_predictions_max.tsv")
   out$Performance <- paste0(out$Base, "performance.tsv")
   out$PR <- paste0(out$Base, "PrecisionRecall.pdf")
 
@@ -282,7 +283,7 @@ predict_target_genes <- function(trait = NULL,
     # get CSs and symbols
     dplyr::right_join(
       txv_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
-                                   pair, cs, symbol),
+                                   pair, variant, cs, enst, symbol),
       by = "pair"
     ) %>%
     # multiply score by expression binary
@@ -292,13 +293,15 @@ predict_target_genes <- function(trait = NULL,
     # select columns
     dplyr::select(
       chrom, start, end,
+      variant,
       cs,
+      enst,
       symbol,
       score,
       where(is.numeric)
     )
 
-  # predictions to save (max gene per CS)
+  # predictions to save
   predictions <- scores %>%
     # filter to max score per CS-gene pair
     dplyr::group_by(cs, symbol) %>%
@@ -307,12 +310,18 @@ predict_target_genes <- function(trait = NULL,
     dplyr::group_by(cs) %>%
     dplyr::mutate(max = score == max(score)) %>%
     # order
-    dplyr::select(chrom:end, cs, symbol, score, max) %>%
+    dplyr::select(chrom:end, variant, cs, symbol, score, max) %>%
     dplyr::arrange(-score)
-
+  
+  # max prediction per CS to save
+  max <- predictions %>%
+    dplyr::filter(max) %>%
+    dplyr::select(variant, cs, symbol)
+  
   # write tables
   write_tibble(scores, filename = out$Annotations)
   write_tibble(predictions, filename = out$Predictions)
+  write_tibble(max, filename = out$MaxPredictions)
   }
 
   # 7) PERFORMANCE ======================================================================================================
@@ -325,7 +334,7 @@ predict_target_genes <- function(trait = NULL,
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
   pdf(out$PR, height = 10, width = 20, onefile = T)
-  print(plot_PR(performance))
+  print(plot_PR(performance) + ggplot2::theme_bw() )
   print(performance$PR %>%
     dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
     dplyr::filter(prediction_type == "max") %>%
@@ -339,6 +348,7 @@ predict_target_genes <- function(trait = NULL,
     ggplot2::labs(title = out$Base %>% gsub("/", " ", .),
                   x = "Predictor",
                   y = "PR AUC") +
+    ggplot2::theme_bw() +
     ggplot2::coord_flip())
   dev.off()
 

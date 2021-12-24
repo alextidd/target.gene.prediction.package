@@ -3,20 +3,11 @@ library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp") ; load_all()
 GENCODEPath="/working/lab_jonathb/alexandT/tgp_paper/output/GENCODE/proteincoding.gencode.v34lift37.basic."
 REVELPath="/working/lab_jonathb/alexandT/tgp_paper/output/REVEL/"
 
-# TSSs
-TSSs <- import_BED(gzfile(paste0(GENCODEPath, "tss.bed.gz")),
-                   metadata_cols = c("ensg", "symbol", "enst"))
-
-# promoters
-promoters <- import_BED(gzfile(paste0(GENCODEPath, "promoter.bed.gz") ),
-                        metadata_cols = "enst")
-# introns
-introns <- import_BED(gzfile(paste0(GENCODEPath, "intron.bed.gz")),
-                      metadata_cols = "enst")
-
-# exons
-exons <- import_BED(gzfile(paste0(GENCODEPath, "exon.bed.gz")),
-                    metadata_cols = "enst")
+# GENCODE
+TSSs <- import_BED(gzfile(paste0(GENCODEPath, "tss.bed.gz")), metadata_cols = c("ensg", "symbol", "enst"))
+promoters <- import_BED(gzfile(paste0(GENCODEPath, "promoter.bed.gz") ), metadata_cols = "enst")
+introns <- import_BED(gzfile(paste0(GENCODEPath, "intron.bed.gz")), metadata_cols = "enst")
+exons <- import_BED(gzfile(paste0(GENCODEPath, "exon.bed.gz")), metadata_cols = "enst")
 
 # ChrSizes
 ChrSizes <- read_tibble( "/working/lab_jonathb/alexandT/tgp_paper/data/hg19.genome")
