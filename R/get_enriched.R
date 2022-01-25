@@ -44,33 +44,43 @@ get_enriched <- function(variants,
       dplyr::filter(decile == 1)
 
     # threshold of % of CCVs in top DHSs
-    thresholded_counts <- bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
+    counts <- bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
       dplyr::group_by(name) %>%
       dplyr::count(name = "n_intersections") %>%
-      dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant)) %>%
-      dplyr::filter(n_intersections/n_variants > min_proportion_of_variants_in_top_DHSs)
+      dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant),
+                    proportion_of_variants_in_top_DHSs = n_intersections/n_variants)
+    thresholded_counts <- counts %>%
+      dplyr::filter(proportion_of_variants_in_top_DHSs > min_proportion_of_variants_in_top_DHSs)
     if(nrow(thresholded_counts) == 0){
       stop(message("No cell types had more than ",
                    min_proportion_of_variants_in_top_DHSs*100, "% of ", trait,
                    " variants in their most specific DHSs. Choose a lower `min_proportion_of_variants_in_top_DHSs` cut-off or specify a `tissue_of_interest` to skip this enrichment step."))
     }
 
-    enriched[["celltypes"]] <- bed_fisher_grouped(
+    # Fisher enrichment statistics for all celltypes/tissues
+    enrichment <- bed_fisher_grouped(
       bedA = specific_DHSs,
       bedA_groups = "name",
       bedB = variants,
-      genome = ChrSizes,
-      # filter for effect and significance
-      estimate > estimate_cutoff,
-      p.value < p.value_cutoff
-    ) %>%
-      # threshold of % of CCVs in top DHS
-      dplyr::filter(name %in% thresholded_counts$name) %>%
-      # Get enriched celltype
-      {dplyr::filter(all_metadata, name %in% .)} %>%
-      # Get all celltypes in enriched tissue
-      {dplyr::filter(all_metadata, tissue %in% .$tissue)}
+      genome = ChrSizes) %>%
+      dplyr::left_join(counts %>% dplyr::select(name, proportion_of_variants_in_top_DHSs)) %>%
+      dplyr::mutate(enriched =
+                      # filter for effect
+                      estimate > estimate_cutoff &
+                      # filter for significance
+                      p.value < p.value_cutoff &
+                      # threshold of % of CCVs in top DHSs
+                      proportion_of_variants_in_top_DHSs > min_proportion_of_variants_in_top_DHSs)
+    write_tibble(enrichment, out$TissueEnrichment)
 
+    # Enriched celltypes/tissues
+    enriched[["celltypes"]] <- enrichment %>%
+      # Filter to enriched celltypes
+      dplyr::filter(enriched)  %>%
+      # Get enriched celltype metadata
+      {dplyr::filter(all_metadata, name %in% .)} %>%
+      # Get all samples in the enriched tissue
+      {dplyr::filter(all_metadata, tissue %in% .$tissue)}
 
     # Error message if no cell types were enriched
     if(nrow(enriched$celltypes)==0){stop("No enriched cell types found!")}

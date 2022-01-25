@@ -20,7 +20,7 @@ get_PR <- function(scores, txv_master, drivers){
     get_testable() %>%
     dplyr::distinct(cs, symbol, driver)
 
-  # score, max, max_score
+  # score, max
   pred <- scores %>%
     dplyr::select(-c(chrom:end)) %>%
     dplyr::right_join(testable, by = c("cs", "symbol")) %>%
@@ -37,12 +37,13 @@ get_PR <- function(scores, txv_master, drivers){
     ) %>%
     # max prediction
     dplyr::group_by(prediction_method, cs) %>%
-    dplyr::mutate(max = as.numeric(score == max(score) & score > 0),
-                  max_score = dplyr::case_when(max == 0 ~ 0,
-                                               TRUE ~ score)) %>%
+    dplyr::mutate(max = as.numeric(score == max(score) & score > 0)
+                  #, max_score = dplyr::case_when(max == 0 ~ 0,
+                  #                              TRUE ~ score)
+                  ) %>%
     # gather prediction types
     tidyr::pivot_longer(
-      c(score, max_score, max),
+      c(score, max), #, max_score
       names_to = "prediction_type",
       values_to = "prediction"
     ) %>%
