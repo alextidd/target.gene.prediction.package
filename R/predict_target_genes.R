@@ -40,8 +40,7 @@ predict_target_genes <- function(trait = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
-  # contact = NULL ; DHSs = NULL
+  # contact = NULL ; DHSs = NULL ; setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
   # for testing externally:
   # library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, DHSs = DHSs)
 
@@ -87,9 +86,6 @@ predict_target_genes <- function(trait = NULL,
     cat(" > Importing DHS binning data...\n")
     DHSs <- readRDS(paste0(referenceDir, "DHSs.rda"))
   }
-
-  DHSs_master <- DHSs[[1]] %>%
-    dplyr::distinct(chrom, start, end, DHS)
   specific_DHSs_closest_specific_genes <- readRDS(paste0(referenceDir, "specific_DHSs_closest_specific_genes.rda"))
 
   # import the expression data
@@ -120,11 +116,7 @@ predict_target_genes <- function(trait = NULL,
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
   cat("2) Finding enhancer variants...\n")
-  open_variants <- DHSs_master %>%
-    bed_intersect_left(
-      variants, .,
-      keepBcoords = F,
-      keepBmetadata = F)
+
 
   # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs <2Mb apart)
   txv_master <- variants %>%
@@ -151,6 +143,7 @@ predict_target_genes <- function(trait = NULL,
   # 3a) VARIANT-LEVEL INPUTS ====
   cat(" > V\tAnnotating variants...\n")
   v <- get_v_level_annotations(variants,
+                               DHSs,
                                enriched,
                                txv_master)
 
@@ -211,31 +204,6 @@ predict_target_genes <- function(trait = NULL,
   # non-celltype-specific annotations have one `value` column, which applies across all celltypes
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
   saveRDS(MA, file = paste0(out$Base, "MA.rda"))
-
-  # 5) WEIGHTING ======================================================================================================
-  # # MANUAL WEIGHTING ===
-  # if(do_manual_weighting){
-  # celltype_of_interest <- unique(enriched$celltypes$name)
-  # if(length(celltype_of_interest) == 1){
-  #   to_add <- c("v_DHSs_signal",
-  #               "v_DHSs_specificity",
-  #               "txv_contact_ChIAPET_binary",
-  #               "txc_n_multicontact_binary_ChIAPET",
-  #               "gxv_specific_DHSs_closest_specific_genes",
-  #               "txv_exon")
-  #   to_multiply <- c("txv_TADs",
-  #                    "g_expression")
-  #   # celltype_of_interest = "BRST.HMEC" ; n_unique_manual_weights = 1
-  #   manual_models <- weight_and_score_manually(MA,
-  #                                              celltype_of_interest,
-  #                                              txv_master,
-  #                                              drivers,
-  #                                              to_add,
-  #                                              to_multiply,
-  #                                              n_unique_manual_weights)
-  #   write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))
-  # } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
-  # }
 
   # 5) SCORING ======================================================================================================
   if(do_scoring){
@@ -337,22 +305,21 @@ predict_target_genes <- function(trait = NULL,
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
   pdf(out$PR, height = 10, width = 20, onefile = T)
-  print(plot_PR(performance) + ggplot2::theme_bw() + ggplot2::ggtitle(out$Base %>% gsub("/", " ", .)))
-  print(performance$PR %>%
-    dplyr::select(prediction_method, prediction_type, PR_AUC) %>%
-    dplyr::filter(prediction_type == "max") %>%
-    dplyr::distinct() %>%
-    dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
-    dplyr::distinct() %>%
-    ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, PR_AUC),
-                                 y = PR_AUC,
-                                 fill = level)) +
-    ggplot2::geom_col() +
-    ggplot2::labs(title = out$Base %>% gsub("/", " ", .),
-                  x = "Predictor",
-                  y = "PR AUC") +
-    ggplot2::theme_bw() +
-    ggplot2::coord_flip())
+  # PR score + max
+  performance %>%
+    plot_PR +
+    ggplot2::ggtitle(out$Base %>% gsub("/", " ", .)) %>%
+    print
+  # PR max
+  performance %>%
+    purrr::map(~ .x %>% dplyr::filter(prediction_type == "max")) %>%
+    plot_PR +
+    ggplot2::ggtitle(out$Base %>% gsub("/", " ", .) %>% paste("max")) %>%
+    print
+  # AUPRC
+  performance %>%
+    plot_AUPRC %>%
+    print
   dev.off()
 
   # write table
@@ -367,9 +334,9 @@ predict_target_genes <- function(trait = NULL,
   full <- scores %>%
     dplyr::mutate(label = (symbol %in% drivers$symbol) %>% as.numeric) %>%
     dplyr::group_by(cs) %>%
-    dplyr::filter(any(label == T)) %>%
+    dplyr::filter(any(label == 1)) %>%
     dplyr::ungroup()
-  train <- list(data = full %>% dplyr::select(-c(cs, symbol, label)) %>% as.matrix,
+  train <- list(data = full %>% dplyr::select(-c(chrom:symbol)) %>% as.matrix,
                 label = full$label)
   dtrain <- xgboost::xgb.DMatrix(data = train$data,
                                  label = train$label)
@@ -400,5 +367,30 @@ predict_target_genes <- function(trait = NULL,
 }
 
 
+
+# 5) WEIGHTING ======================================================================================================
+# # MANUAL WEIGHTING ===
+# if(do_manual_weighting){
+# celltype_of_interest <- unique(enriched$celltypes$name)
+# if(length(celltype_of_interest) == 1){
+#   to_add <- c("v_DHSs_signal",
+#               "v_DHSs_specificity",
+#               "txv_contact_ChIAPET_binary",
+#               "txc_n_multicontact_binary_ChIAPET",
+#               "gxv_specific_DHSs_closest_specific_genes",
+#               "txv_exon")
+#   to_multiply <- c("txv_TADs",
+#                    "g_expression")
+#   # celltype_of_interest = "BRST.HMEC" ; n_unique_manual_weights = 1
+#   manual_models <- weight_and_score_manually(MA,
+#                                              celltype_of_interest,
+#                                              txv_master,
+#                                              drivers,
+#                                              to_add,
+#                                              to_multiply,
+#                                              n_unique_manual_weights)
+#   write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))
+# } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
+# }
 
 

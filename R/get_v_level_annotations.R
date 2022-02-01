@@ -1,4 +1,5 @@
 get_v_level_annotations <- function(variants,
+                                    DHSs,
                                     enriched,
                                     txv_master){
 
@@ -9,6 +10,15 @@ get_v_level_annotations <- function(variants,
     intersect_DHSs(query = variants,
                    DHSs = enriched$DHSs,
                    variant)
+
+  # annotate open variants (in DHSs)
+  v$DHSs <- DHSs[[1]] %>%
+    dplyr::distinct(chrom, start, end, DHS) %>%
+    bed_intersect_left(
+      variants, .,
+      keepBcoords = F,
+      keepBmetadata = F) %>%
+    dplyr::distinct(variant)
 
   # calculate n genes near each variant
   v <- txv_master %>%

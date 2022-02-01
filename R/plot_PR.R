@@ -13,8 +13,10 @@ plot_PR <- function(performance){
                        ggplot2::aes(linetype = prediction_type)) +
     ggplot2::geom_point(data = . %>% dplyr::filter(point),
                         ggplot2::aes(shape = prediction_type)) +
+    ggsci::scale_color_igv() +
     ggplot2::xlim(0,1) +
     ggplot2::ylim(0,1) +
     ggplot2::coord_equal() +
-    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")"))
+    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")")) +
+    ggplot2::theme_bw()
 }

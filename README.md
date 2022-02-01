@@ -3,8 +3,7 @@ TGP Tour
 Alexandra Tidd
 October 28, 2021
 
-Interactive development
------------------------
+## Interactive development
 
 To simulate installing and loading the package during interactive development...
 
@@ -77,7 +76,7 @@ DHSs <- readRDS(paste0(referenceDir, "DHSs.rda"))
 MAE <- predict_target_genes(trait = "BC",
                             outDir = "out/",
                             variantsFile = "example_data/data/BC/BC.VariantList.bed",
-                            driversFile = "example_data/data/BC/BC.VariantList.bed",
+                            driversFile = "example_data/data/BC/BC.Drivers.txt",
                             do_scoring = T,
                             do_performance = T,
                             do_XGBoost = T,
@@ -85,8 +84,7 @@ MAE <- predict_target_genes(trait = "BC",
                             DHSs = DHSs)
 ```
 
-Package data
-------------
+## Package data
 
 This package will use both reference genomic annotation datasets and user-provided trait-specific datasets.
 
