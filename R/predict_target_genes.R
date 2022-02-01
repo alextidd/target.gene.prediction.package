@@ -112,6 +112,7 @@ predict_target_genes <- function(trait = NULL,
                            expression,
                            TADs,
                            all_metadata,
+                           out,
                            min_proportion_of_variants_in_top_DHSs,
                            tissue_of_interest,
                            do_all_cells)
