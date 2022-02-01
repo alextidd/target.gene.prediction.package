@@ -237,7 +237,7 @@ predict_target_genes <- function(trait = NULL,
   # } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
   # }
 
-  # 6) SCORING ======================================================================================================
+  # 5) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
 
@@ -326,8 +326,9 @@ predict_target_genes <- function(trait = NULL,
   write_tibble(max, filename = out$MaxPredictions)
   }
 
-  # 7) PERFORMANCE ======================================================================================================
+  # 6) PERFORMANCE ======================================================================================================
   if(do_performance){
+  cat("6) Measuring tgp performance...\n")
   # Generate PR curves (model performance metric)
   performance <- scores %>%
     # get performance
@@ -358,15 +359,17 @@ predict_target_genes <- function(trait = NULL,
   write_tibble(performance$summary, filename = out$Performance)
   }
 
-  # 8) XGBoost MODEL TRAINING ======================================================================================================
+  # 7) XGBoost MODEL TRAINING ======================================================================================================
   if(do_XGBoost){
+  cat("7) Training an XGBoost model...\n")
+
   # format training set
   full <- scores %>%
     dplyr::mutate(label = (symbol %in% drivers$symbol) %>% as.numeric) %>%
     dplyr::group_by(cs) %>%
     dplyr::filter(any(label == T)) %>%
     dplyr::ungroup()
-  train <- list(data = full %>% dplyr::select(-c(cs, symbol, evidence, n_evidence, label)) %>% as.matrix,
+  train <- list(data = full %>% dplyr::select(-c(cs, symbol, label)) %>% as.matrix,
                 label = full$label)
   dtrain <- xgboost::xgb.DMatrix(data = train$data,
                                  label = train$label)
@@ -386,7 +389,7 @@ predict_target_genes <- function(trait = NULL,
   dev.off()
   }
 
-  # 9) SAVE ===
+  # 8) SAVE ===
   # save(master,
   #      predictions,
   #      performance,
