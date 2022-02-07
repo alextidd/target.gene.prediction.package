@@ -9,6 +9,7 @@ get_enriched <- function(variants,
                          min_proportion_of_variants_in_top_DHSs,
                          tissue_of_interest,
                          do_all_cells,
+                         do_all_cells_in_enriched_tissue,
                          estimate_cutoff = 2,
                          p.value_cutoff = 0.05){
 
@@ -64,31 +65,38 @@ get_enriched <- function(variants,
       bedA_groups = "name",
       bedB = variants,
       genome = ChrSizes) %>%
-      dplyr::left_join(counts %>% dplyr::select(name, proportion_of_variants_in_top_DHSs)) %>%
-      dplyr::mutate(enriched =
+      dplyr::left_join(counts %>% dplyr::select(name, proportion_of_variants_in_top_DHSs), by = "name") %>%
+      dplyr::mutate(significant =
                       # filter for effect
                       estimate > estimate_cutoff &
                       # filter for significance
                       p.value < p.value_cutoff &
                       # threshold of % of CCVs in top DHSs
-                      proportion_of_variants_in_top_DHSs > min_proportion_of_variants_in_top_DHSs)
+                      proportion_of_variants_in_top_DHSs > min_proportion_of_variants_in_top_DHSs) %>%
+      dplyr::arrange(p.value)
     write_tibble(enrichment, out$TissueEnrichment)
 
     # Enriched celltypes/tissues
     enriched[["celltypes"]] <- enrichment %>%
       # Filter to enriched celltypes
-      dplyr::filter(enriched)  %>%
+      dplyr::filter(significant)  %>%
       # Get enriched celltype metadata
       {dplyr::filter(all_metadata, name %in% .)} %>%
-      # Get all samples in the enriched tissue
-      {dplyr::filter(all_metadata, tissue %in% .$tissue)}
+      # Get all samples in the enriched tissue, or only the enriched celltype
+      {dplyr::filter(all_metadata,
+                      (do_all_cells_in_enriched_tissue & tissue %in% .$tissue ) |
+                      (!do_all_cells_in_enriched_tissue & name %in% .$name))}
 
     # Error message if no cell types were enriched
     if(nrow(enriched$celltypes)==0){stop("No enriched cell types found!")}
 
     # Enriched celltype(s)/tissue(s)
-    cat("Enriched tissue(s): ") ; message(unique(enriched$celltypes$tissue))
-    cat("Celltype(s) in enriched tissue(s): ") ; message(paste(unique(enriched$celltypes$name), collapse = ", "))
+    if(do_all_cells_in_enriched_tissue){
+      cat("Enriched tissue(s): ") ; message(unique(enriched$celltypes$tissue))
+      cat("Celltype(s) in enriched tissue(s): ") ; message(paste(unique(enriched$celltypes$name), collapse = ", "))
+    } else {
+      cat("Enriched celltype(s): ") ; message(paste(unique(enriched$celltypes$name), collapse = ", "))
+    }
 
   }
 
@@ -98,21 +106,16 @@ get_enriched <- function(variants,
     purrr::map( ~ dplyr::select(., chrom:DHS,
                                 dplyr::any_of(enriched$celltypes$name[enriched$celltypes$object == "DHSs"])))
   ## specific_DHSs_closest_specific_genes
-  enriched$specific_DHSs_closest_specific_genes <-
-    specific_DHSs_closest_specific_genes %>%
+  enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
     dplyr::select(chrom:end, dplyr::all_of(enriched$celltypes$name[enriched$celltypes$object == "DHSs"])) %>%
     dplyr::filter(dplyr::if_all(where(is.character), ~ !is.na(.)))
   ## contact
-  enriched$contact <-
-    names(contact) %>% sapply(function(x) {
+  enriched$contact <- names(contact) %>%
+    sapply(function(x) {
       contact[[x]][names(contact[[x]]) %in% enriched$celltypes$name[enriched$celltypes$object == "contact"]]
-    },
-    simplify = F, USE.NAMES = T)
-  # enriched$contact <-
-  #   enriched$contact[lapply(enriched$contact, length) > 0] # remove empty elements
+    }, simplify = F, USE.NAMES = T)
   ## expression
-  enriched$expression <-
-    expression[, colnames(expression) %in% enriched$celltypes$name, drop = F]
+  enriched$expression <- expression[, colnames(expression) %in% enriched$celltypes$name, drop = F]
   ## TADs
   enriched$TADs <- TADs[names(TADs) %in% enriched$celltypes$name]
 

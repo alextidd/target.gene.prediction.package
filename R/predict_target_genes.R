@@ -11,6 +11,7 @@
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
 #' @param min_proportion_of_variants_in_top_DHSs A threshold proportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
 #' @param do_all_cells If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
+#' @param do_all_cells_in_enriched_tissue If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, DHSs) in the metadata table.
 #' @param do_manual_weighting If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.
 #' @param n_unique_manual_weights The number of unique weights for the do_manual_weighting chunk to consider. If NULL, the chunk will consider as many unique weights as there are to_add components. Default is NULL.
 #' @param do_scoring If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.
@@ -30,6 +31,7 @@ predict_target_genes <- function(trait = NULL,
                                  variant_to_gene_max_distance = 2e6,
                                  min_proportion_of_variants_in_top_DHSs = 0.05,
                                  do_all_cells = F,
+                                 do_all_cells_in_enriched_tissue = T,
                                  do_manual_weighting = F,
                                  n_unique_manual_weights = NULL,
                                  do_scoring = T,
@@ -40,7 +42,7 @@ predict_target_genes <- function(trait = NULL,
                                  DHSs = NULL){
 
   # for testing internally:
-  # contact = NULL ; DHSs = NULL ; setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
+  # contact = NULL ; DHSs = NULL ; setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_DHSs = 0.05 ; do_all_cells = F ; do_all_cells_in_enriched_tissue = T ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
   # for testing externally:
   # library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp") ; load_all() ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; DHSs <- readRDS(paste0(referenceDir, "DHSs/DHSs.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, DHSs = DHSs)
 
@@ -60,9 +62,11 @@ predict_target_genes <- function(trait = NULL,
     Performance = "performance.tsv",
     PR = "PrecisionRecall.pdf"
   ) ; out <- paste0(outDir,"/", trait, "/") %>%
-    { if(do_all_cells) paste0(., "all_cells/") else paste0(., "enriched_cells/")} %>%
-    { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
-    { purrr::map(out, function(x) paste0(., x)) }
+  { if(do_all_cells) paste0(., "all_") else paste0(., "enriched_") } %>%
+  { if(do_all_cells_in_enriched_tissue) paste0(., "tissues/") else paste0(., "cells/") } %>%
+  { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
+  { purrr::map(out, function(x) paste0(., x)) }
+  dir.create(out$Base, showWarnings = F, recursive = T)
 
   # import the user-provided variants
   cat(" > Importing variants...\n")
@@ -111,31 +115,46 @@ predict_target_genes <- function(trait = NULL,
                            out,
                            min_proportion_of_variants_in_top_DHSs,
                            tissue_of_interest,
-                           do_all_cells)
+                           do_all_cells,
+                           do_all_cells_in_enriched_tissue)
 
   # 2) ENHANCER VARIANTS ======================================================================================================
   # get variants at DHSs ('enhancer variants')
   cat("2) Finding enhancer variants...\n")
 
-
-  # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs <2Mb apart)
-  txv_master <- variants %>%
+  # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs < variant_to_gene_max_distance apart)
+  nearby_genes <- variants %>%
+    # all genes within variant_to_gene_max_distance
     valr::bed_slop(both = variant_to_gene_max_distance,
                    genome = ChrSizes,
                    trim = T) %>%
     valr::bed_intersect(., TSSs,
-                        suffix = c(".variant", ".TSS")) %>%
-    dplyr::distinct(chrom,
-                    start.variant = start.variant + variant_to_gene_max_distance,
-                    end.variant = end.variant - variant_to_gene_max_distance,
+                        suffix = c("", ".TSS")) %>%
+    # fix coords
+    dplyr::select(-c(start, -end))
+
+  txv_master <- variants %>%
+    # all genes within 2Mb
+    valr::bed_slop(both = variant_to_gene_max_distance,
+                   genome = ChrSizes,
+                   trim = T) %>%
+    valr::bed_intersect(., TSSs,
+                        suffix = c("", ".TSS")) %>%
+    # restore coords
+    dplyr::select(-c(start, end)) %>%
+    dplyr::left_join(variants, by = c("chrom", "variant", "cs")) %>%
+    dplyr::transmute(chrom,
+                    start.variant = start,
+                    end.variant = end,
                     start.TSS, end.TSS,
-                    distance = abs(end.variant - end.TSS),
-                    variant = variant.variant,
-                    pair = paste0(variant.variant, "|", enst.TSS),
-                    cs = cs.variant,
+                    distance = abs(end - end.TSS),
+                    variant,
+                    pair = paste0(variant, "|", enst.TSS),
+                    cs,
                     enst = enst.TSS,
                     symbol = symbol.TSS,
-                    ensg = ensg.TSS)
+                    ensg = ensg.TSS) %>%
+    dplyr::distinct()
 
   # 3) ANNOTATING ======================================================================================================
   cat("3) Annotating enhancer-gene pairs...\n")
@@ -304,22 +323,28 @@ predict_target_genes <- function(trait = NULL,
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
-  pdf(out$PR, height = 10, width = 20, onefile = T)
+  pdf(out$PR, height = 10, width = 10, onefile = T)
   # PR score + max
-  performance %>%
-    plot_PR +
-    ggplot2::ggtitle(out$Base %>% gsub("/", " ", .)) %>%
-    print
+  print(
+    performance %>%
+      plot_PR +
+      ggplot2::ggtitle(out$Base %>% gsub("/", " ", .))
+  )
   # PR max
-  performance %>%
-    purrr::map(~ .x %>% dplyr::filter(prediction_type == "max")) %>%
-    plot_PR +
-    ggplot2::ggtitle(out$Base %>% gsub("/", " ", .) %>% paste("max")) %>%
-    print
+  print(
+    performance %>%
+      purrr::map(~ .x %>% dplyr::filter(prediction_type == "max")) %>%
+      plot_PR +
+      ggplot2::ggtitle(out$Base %>% gsub("/", " ", .) %>% paste("max"))
+  )
   # AUPRC
-  performance %>%
-    plot_AUPRC %>%
-    print
+  print(
+    performance %>%
+      plot_AUPRC +
+      ggplot2::ggtitle(out$Base %>% gsub("/", " ", .)) +
+      ggplot2::coord_flip()
+  )
+
   dev.off()
 
   # write table
@@ -336,20 +361,20 @@ predict_target_genes <- function(trait = NULL,
     dplyr::group_by(cs) %>%
     dplyr::filter(any(label == 1)) %>%
     dplyr::ungroup()
-  train <- list(data = full %>% dplyr::select(-c(chrom:symbol)) %>% as.matrix,
+  train <- list(data = full %>% dplyr::select(names(master)) %>% as.matrix,
                 label = full$label)
   dtrain <- xgboost::xgb.DMatrix(data = train$data,
                                  label = train$label)
   # model training
   xgb1 <- xgboost::xgboost(data = dtrain,
-                           max.depth = 2,
+                           max.depth = 5,
                            eta = 1,
-                           nrounds = 100,
+                           nrounds = 500,
                            objective = "binary:logistic",
                            verbose = 1)
   # view feature importance plot
   xgb1_feature_importance_mat <- xgboost::xgb.importance(feature_names = colnames(dtrain), model = xgb1)
-  xgb1_feature_importance_plot <- xgboost::xgb.ggplot.importance(importance_matrix = xgb1_feature_importance_mat, top_n=50)
+  xgb1_feature_importance_plot <- xgboost::xgb.ggplot.importance(importance_matrix = xgb1_feature_importance_mat)
   # save plot
   pdf(paste0(out$Base, "xgb_model_feature_importance.pdf"))
   print(xgb1_feature_importance_plot)
