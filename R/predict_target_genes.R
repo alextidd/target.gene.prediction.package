@@ -6,7 +6,7 @@
 #' @param tissue_of_interest Optional. The tissue(s) of interest for the trait.
 #' @param outDir The output directory in which to save the predictions. Default is "./out".
 #' @param variantsFile A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
-#' @param driversFile The file containing a list of trait driver gene symbols.
+#' @param driversFile Optional. The file containing a list of trait driver gene symbols. If do_performance is TRUE, must provide a driversFile.
 #' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
 #' @param min_proportion_of_variants_in_top_DHSs A threshold proportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
@@ -51,6 +51,7 @@ predict_target_genes <- function(trait = NULL,
 
   # SETUP ======================================================================================================
   if(do_XGBoost){do_scoring <- T}
+  if(do_performance & is.null(driversFile)){stop("do_performance = TRUE but no driversFile provided! Performance analysis requires a driversFile.")}
 
   # define the output
   out <- list(
@@ -232,7 +233,7 @@ predict_target_genes <- function(trait = NULL,
   weights <- list(
     txv_TADs = 1,
     txv_inv_distance = 1,
-    gxv_specific_DHSs_closest_specific_genes = 1,
+    gxv_specific_DHSs_closest_specific_genes = 0, # 1
     txv_intron = 1,
     gxv_missense = 1,
     gxv_nonsense = 1,

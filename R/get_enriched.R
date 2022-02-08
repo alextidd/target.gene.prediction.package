@@ -81,14 +81,14 @@ get_enriched <- function(variants,
       # Filter to enriched celltypes
       dplyr::filter(significant)  %>%
       # Get enriched celltype metadata
-      {dplyr::filter(all_metadata, name %in% .)} %>%
+      {dplyr::filter(all_metadata, name %in% .$name)} %>%
       # Get all samples in the enriched tissue, or only the enriched celltype
       {dplyr::filter(all_metadata,
                       (do_all_cells_in_enriched_tissue & tissue %in% .$tissue ) |
                       (!do_all_cells_in_enriched_tissue & name %in% .$name))}
 
     # Error message if no cell types were enriched
-    if(nrow(enriched$celltypes)==0){stop("No enriched cell types found!")}
+    if(nrow(enriched$celltypes)==0){stop("No enriched cell types found! Enrichment analysis saved to ", out$TissueEnrichment)}
 
     # Enriched celltype(s)/tissue(s)
     if(do_all_cells_in_enriched_tissue){
