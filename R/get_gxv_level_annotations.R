@@ -1,6 +1,5 @@
 get_gxv_level_annotations <- function(variants,
                                       txv_master,
-                                      DHSs_master,
                                       enriched){
 
   gxv <- list()
@@ -16,10 +15,10 @@ get_gxv_level_annotations <- function(variants,
       value = 1/rank(distance, ties.method = "min")
     )
 
-  # variants in specific DHSs x genes in specific DHSs
-  gxv$specific_DHSs_closest_specific_genes <- variants %>%
-    # intersect with specific_DHSs_closest_specific_genes
-    bed_intersect_left(enriched$specific_DHSs_closest_specific_genes, keepBcoords = F) %>%
+  # variants in specific  x genes in specific H3K27ac
+  gxv$specific_H3K27ac_closest_specific_genes <- variants %>%
+    # intersect with specific_H3K27ac_closest_specific_genes
+    bed_intersect_left(enriched$specific_H3K27ac_closest_specific_genes, keepBcoords = F) %>%
     tidyr::pivot_longer(-c(chrom:cs), names_to = "celltype", values_to = "ensg") %>%
     dplyr::filter(!is.na(ensg)) %>%
     dplyr::distinct(variant, celltype, ensg) %>%

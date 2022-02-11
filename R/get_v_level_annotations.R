@@ -1,19 +1,19 @@
 get_v_level_annotations <- function(variants,
-                                    DHSs,
+                                    H3K27ac,
                                     enriched,
-                                    txv_master){
+                                    txv_master,
+                                    DHSs){
 
   v <- list()
 
   # intersect with DHS binnings
   v <- v %>%
-    intersect_DHSs(query = variants,
-                   DHSs = enriched$DHSs,
+    intersect_H3K27ac(query = variants,
+                   H3K27ac = enriched$H3K27ac,
                    variant)
 
   # annotate open variants (in DHSs)
-  v$DHSs <- DHSs[[1]] %>%
-    dplyr::distinct(chrom, start, end, DHS) %>%
+  v$DHSs <- DHSs %>%
     bed_intersect_left(
       variants, .,
       keepBcoords = F,

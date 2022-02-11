@@ -81,9 +81,9 @@ get_txv_level_annotations <- function(variants,
       promoters,
       keepBcoords = F, keepBmetadata = T) %>%
     # Get DHS bins at those promoter variants
-    intersect_DHSs(list(),
+    intersect_H3K27ac(list(),
                    query = .,
-                   DHSs = enriched$DHSs,
+                   H3K27ac = enriched$H3K27ac,
                    variant, enst) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     # Sum specificity + signal bin per promoter variant per cell type

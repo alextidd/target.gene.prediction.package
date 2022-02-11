@@ -1,12 +1,12 @@
 get_enriched <- function(variants,
-                         DHSs,
-                         specific_DHSs_closest_specific_genes,
+                         H3K27ac,
+                         specific_H3K27ac_closest_specific_genes,
                          contact,
                          expression,
                          TADs,
                          all_metadata,
                          out,
-                         min_proportion_of_variants_in_top_DHSs,
+                         min_proportion_of_variants_in_top_H3K27ac,
                          tissue_of_interest,
                          do_all_cells,
                          do_all_cells_in_enriched_tissue,
@@ -39,40 +39,40 @@ get_enriched <- function(variants,
     cat("Performing enrichment analysis to find enriched tissue(s).\n")
     # No user-provided tissue, determine via enrichment analysis
     # Fisher enrichment test will be of variants in top-decile cell-type-specificic H3K27ac marks in DHSs
-    specific_DHSs <- DHSs$specificity %>%
+    specific_H3K27ac <- H3K27ac$specificity %>%
       tidyr::pivot_longer(cols = -c(chrom:DHS),
                           names_to = "name",
                           values_to = "decile") %>%
       dplyr::filter(decile == 1)
 
-    # threshold of % of CCVs in top DHSs
-    counts <- bed_intersect_left(variants, specific_DHSs, keepBcoords = F) %>%
+    # threshold of % of CCVs in top H3K27ac
+    counts <- bed_intersect_left(variants, specific_H3K27ac, keepBcoords = F) %>%
       dplyr::group_by(name) %>%
       dplyr::count(name = "n_intersections") %>%
       dplyr::mutate(n_variants = dplyr::n_distinct(variants$variant),
-                    proportion_of_variants_in_top_DHSs = n_intersections/n_variants)
+                    proportion_of_variants_in_top_H3K27ac = n_intersections/n_variants)
     thresholded_counts <- counts %>%
-      dplyr::filter(proportion_of_variants_in_top_DHSs > min_proportion_of_variants_in_top_DHSs)
+      dplyr::filter(proportion_of_variants_in_top_H3K27ac > min_proportion_of_variants_in_top_H3K27ac)
     if(nrow(thresholded_counts) == 0){
       stop(message("No cell types had more than ",
-                   min_proportion_of_variants_in_top_DHSs*100, "% of ", trait,
-                   " variants in their most specific DHSs. Choose a lower `min_proportion_of_variants_in_top_DHSs` cut-off or specify a `tissue_of_interest` to skip this enrichment step."))
+                   min_proportion_of_variants_in_top_H3K27ac*100, "% of ", trait,
+                   " variants in their most specific H3K27ac. Choose a lower `min_proportion_of_variants_in_top_H3K27ac` cut-off or specify a `tissue_of_interest` to skip this enrichment step."))
     }
 
     # Fisher enrichment statistics for all celltypes/tissues
     enrichment <- bed_fisher_grouped(
-      bedA = specific_DHSs,
+      bedA = specific_H3K27ac,
       bedA_groups = "name",
       bedB = variants,
       genome = ChrSizes) %>%
-      dplyr::left_join(counts %>% dplyr::select(name, proportion_of_variants_in_top_DHSs), by = "name") %>%
+      dplyr::left_join(counts %>% dplyr::select(name, proportion_of_variants_in_top_H3K27ac), by = "name") %>%
       dplyr::mutate(significant =
                       # filter for effect
                       estimate > estimate_cutoff &
                       # filter for significance
                       p.value < p.value_cutoff &
-                      # threshold of % of CCVs in top DHSs
-                      proportion_of_variants_in_top_DHSs > min_proportion_of_variants_in_top_DHSs) %>%
+                      # threshold of % of CCVs in top H3K27ac
+                      proportion_of_variants_in_top_H3K27ac > min_proportion_of_variants_in_top_H3K27ac) %>%
       dplyr::arrange(p.value)
     write_tibble(enrichment, out$TissueEnrichment)
 
@@ -101,13 +101,13 @@ get_enriched <- function(variants,
   }
 
   # Subset annotations
-  ## DHSs
-  enriched$DHSs <- DHSs %>%
+  ## H3K27ac
+  enriched$H3K27ac <- H3K27ac %>%
     purrr::map( ~ dplyr::select(., chrom:DHS,
-                                dplyr::any_of(enriched$celltypes$name[enriched$celltypes$object == "DHSs"])))
-  ## specific_DHSs_closest_specific_genes
-  enriched$specific_DHSs_closest_specific_genes <- specific_DHSs_closest_specific_genes %>%
-    dplyr::select(chrom:end, dplyr::all_of(enriched$celltypes$name[enriched$celltypes$object == "DHSs"])) %>%
+                                dplyr::any_of(enriched$celltypes$name[enriched$celltypes$object == "H3K27ac"])))
+  ## specific_H3K27ac_closest_specific_genes
+  enriched$specific_H3K27ac_closest_specific_genes <- specific_H3K27ac_closest_specific_genes %>%
+    dplyr::select(chrom:end, dplyr::any_of(enriched$celltypes$name[enriched$celltypes$object == "H3K27ac"])) %>%
     dplyr::filter(dplyr::if_all(where(is.character), ~ !is.na(.)))
   ## contact
   enriched$contact <- names(contact) %>%

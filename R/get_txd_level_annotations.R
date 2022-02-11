@@ -1,5 +1,5 @@
 get_txd_level_annotations <- function(ensts_near_vars,
-                                      DHSs_master) {
+                                      DHSs) {
   cat("Annotating transcript x DHS pairs...\n")
 
   txd <- list()
@@ -8,7 +8,7 @@ get_txd_level_annotations <- function(ensts_near_vars,
   # closest DHS to the transcript
   txd$closest <- valr::bed_closest(TSSs %>%
                                      dplyr::filter(enst %in% ensts_near_vars),
-                                   DHSs_master) %>%
+                                   DHSs) %>%
     # valr's .overlap and .dist results are unreliable, generating my own
     dplyr::rowwise() %>%
     dplyr::mutate(dist = min(abs(end.y - start.x), abs(end.x - start.y)),

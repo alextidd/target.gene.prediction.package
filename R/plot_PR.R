@@ -8,7 +8,8 @@ plot_PR <- function(performance){
                   point = !grepl("score", prediction_type)) %>%
     ggplot2::ggplot(ggplot2::aes(x = recall,
                                  y = precision,
-                                 colour = prediction_method)) +
+                                 colour = prediction_method,
+                                 label = prediction_method)) +
     ggplot2::geom_line(data = . %>% dplyr::filter(line),
                        ggplot2::aes(linetype = prediction_type)) +
     ggplot2::geom_point(data = . %>% dplyr::filter(point),

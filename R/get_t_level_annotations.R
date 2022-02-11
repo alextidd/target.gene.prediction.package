@@ -3,10 +3,10 @@ get_t_level_annotations <- function(TSSs,
 
   t <- list()
 
-  # intersect with DHSs
+  # intersect with H3K27ac
   t <- t %>%
-    intersect_DHSs(TSSs %>% dplyr::select(chrom:end, enst),
-                   enriched$DHSs,
+    intersect_H3K27ac(TSSs %>% dplyr::select(chrom:end, enst),
+                   enriched$H3K27ac,
                    enst)
 
   # return

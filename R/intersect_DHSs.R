@@ -3,18 +3,18 @@
 #' Intersect a query BED with the DHS annotations.
 #'
 #' @param query A query bed
-#' @param DHSs A BED tibble (the DHSs) to be intersected by the query bed
+#' @param H3K27ac A BED tibble (the H3K27ac-in-DHSs annotations) to be intersected by the query bed
 #' @param ... query columns to be retained in the output
 #'
 #' @return A tibble of intersected columns, with .query and .annotation suffixes
 #' @export
-intersect_DHSs <- function(l,
+intersect_H3K27ac <- function(l,
                            query,
-                           DHSs,
+                           H3K27ac,
                            ...){
 
   # intersect with query bed
-  l <- DHSs %>%
+  l <- H3K27ac %>%
     lapply(function(x){
       score_cols <- setdiff(colnames(x), c("chrom", "start", "end", "DHS"))
       bed_intersect_left(
@@ -28,7 +28,7 @@ intersect_DHSs <- function(l,
         dplyr::summarise(dplyr::across(score_cols, max)) %>%
         dplyr::ungroup()
     })
-  names(l) <- paste0("DHSs_", names(l))
+  names(l) <- paste0("H3K27ac_", names(l))
   return(l)
 
 }
@@ -36,11 +36,11 @@ intersect_DHSs <- function(l,
 
 # bed_intersect_left(
 #   query,
-#   DHSs,
+#   H3K27ac,
 #   keepBcoords = F) %>%
 #   tidyr::gather(key = "annotation.name",
 #                 value = "annotation.value",
 #                 -c(names(query), "DHS")) %>%
 #   dplyr::transmute(...,
-#                    annotation.name = paste0("DHSs_", annotation.name),
+#                    annotation.name = paste0("H3K27ac_", annotation.name),
 #                    annotation.value)
