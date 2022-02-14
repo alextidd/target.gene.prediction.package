@@ -46,7 +46,7 @@ predict_target_genes <- function(trait = NULL,
   # trait="PrCa"; variantsFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/",trait,".VariantList.bed"); driversFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/",trait,".Drivers.txt")
 
   # for testing externally:
-  # library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp/") ; load_all() ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac/H3K27ac.rda")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rda")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, H3K27ac = H3K27ac)
+  # library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp/") ; load_all() ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac/H3K27ac.rds")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rds")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, H3K27ac = H3K27ac)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
@@ -89,15 +89,15 @@ predict_target_genes <- function(trait = NULL,
   # import the contact data
   if(is.null(contact)){
     cat(" > Importing contact data...\n")
-    contact <- readRDS(paste0(referenceDir, "contact.rda"))
+    contact <- readRDS(paste0(referenceDir, "contact.rds"))
   }
 
   # import the DHS binning data
   if(is.null(H3K27ac)){
     cat(" > Importing DHS binning data...\n")
-    H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac.rda"))
+    H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac.rds"))
   }
-  specific_H3K27ac_closest_specific_genes <- readRDS(paste0(referenceDir, "specific_H3K27ac_closest_specific_genes.rda"))
+  specific_H3K27ac_closest_specific_genes <- readRDS(paste0(referenceDir, "specific_H3K27ac_closest_specific_genes.rds"))
 
   # generate DHSs master
   DHSs <- H3K27ac[[1]] %>%
@@ -105,11 +105,12 @@ predict_target_genes <- function(trait = NULL,
 
   # import the expression data
   cat(" > Importing RNA-seq expression data...\n")
-  expression <- read.delim(paste0(referenceDir, "expression.tsv"))
+  expression <- readRDS(paste0(referenceDir, "expression.rds"))
+  expressed <- readRDS(paste0(referenceDir, "expressed.rds"))
 
   # import the TADs data
   cat(" > Importing TAD data...\n")
-  TADs <- readRDS(paste0(referenceDir, "TADs.rda"))
+  TADs <- readRDS(paste0(referenceDir, "TADs.rds"))
 
   # metadata for all annotations
   all_metadata <- read_tibble(paste0(referenceDir, "all_metadata.tsv"), header = T)
@@ -153,7 +154,7 @@ predict_target_genes <- function(trait = NULL,
                         suffix = c("", ".TSS")) %>%
     # restore coords
     dplyr::select(-c(start, end)) %>%
-    dplyr::left_join(variants, by = c("chrom", "variant", "cs")) %>%
+    dplyr::inner_join(variants, by = c("chrom", "variant", "cs")) %>%
     dplyr::transmute(chrom,
                     start.variant = start,
                     end.variant = end,
@@ -233,7 +234,7 @@ predict_target_genes <- function(trait = NULL,
   # celltype-specific annotations have as many columns as there are annotated celltypes
   # non-celltype-specific annotations have one `value` column, which applies across all celltypes
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
-  saveRDS(MA, file = paste0(out$Base, "MA.rda"))
+  saveRDS(MA, file = paste0(out$Base, "MA.rds"))
 
   # 5) SCORING ======================================================================================================
   if(do_scoring){
@@ -249,7 +250,9 @@ predict_target_genes <- function(trait = NULL,
     gxv_nonsense = 1,
     gxv_splicesite = 1,
     t_H3K27ac_signal = 1,
-    g_expression = 1,
+    g_expressed = 1,
+    g_expression_signal = 1,
+    g_expression_specificity = 1,
     v_inv_n_genes = 0.66,
     c_inv_n_variants = 0.66
   )
@@ -288,7 +291,7 @@ predict_target_genes <- function(trait = NULL,
     ) %>%
     # multiply score by expression binary
     dplyr::mutate(
-      score_expressed = score * g_expression
+      score_expressed = score * g_expressed
     ) %>%
     # select columns
     dplyr::select(
@@ -402,32 +405,3 @@ predict_target_genes <- function(trait = NULL,
 
   return(MA)
 }
-
-
-
-# 5) WEIGHTING ======================================================================================================
-# # MANUAL WEIGHTING ===
-# if(do_manual_weighting){
-# celltype_of_interest <- unique(enriched$celltypes$name)
-# if(length(celltype_of_interest) == 1){
-#   to_add <- c("v_H3K27ac_signal",
-#               "v_H3K27ac_specificity",
-#               "txv_contact_ChIAPET_binary",
-#               "txc_n_multicontact_binary_ChIAPET",
-#               "gxv_specific_H3K27ac_closest_specific_genes",
-#               "txv_exon")
-#   to_multiply <- c("txv_TADs",
-#                    "g_expression")
-#   # celltype_of_interest = "BRST.HMEC" ; n_unique_manual_weights = 1
-#   manual_models <- weight_and_score_manually(MA,
-#                                              celltype_of_interest,
-#                                              txv_master,
-#                                              drivers,
-#                                              to_add,
-#                                              to_multiply,
-#                                              n_unique_manual_weights)
-#   write_tibble(manual_models, paste0(out$Base, "manual_weighting_models_performance.tsv"))
-# } else { cat("dplyr::n_distinct(enriched$celltypes$name) != 1\nFunction will not work\n") }
-# }
-
-

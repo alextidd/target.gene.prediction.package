@@ -9,21 +9,22 @@ predict_target_genes(
   tissue_of_interest = NULL,
   outDir = "out",
  
-    variantsFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
+    variantsFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
  
-    driversFile = "/working/lab_georgiat/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt",
-  referenceDir = "/working/lab_georgiat/alexandT/tgp/reference_data/data/",
+    driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt",
+  referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/",
   variant_to_gene_max_distance = 2e+06,
-  min_proportion_of_variants_in_top_DHSs = 0.05,
-  include_all_celltypes_in_the_enriched_tissue = T,
+  min_proportion_of_variants_in_top_H3K27ac = 0.05,
   do_all_cells = F,
+  do_all_cells_in_enriched_tissue = T,
   do_manual_weighting = F,
   n_unique_manual_weights = NULL,
-  do_scoring = F,
-  do_performance = F,
+  do_scoring = T,
+  do_performance = T,
   do_XGBoost = F,
+  do_timestamp = F,
   contact = NULL,
-  DHSs = NULL
+  H3K27ac = NULL
 )
 }
 \arguments{
@@ -35,17 +36,17 @@ predict_target_genes(
 
 \item{variantsFile}{A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants}
 
-\item{driversFile}{The file containing a list of trait driver gene symbols.}
+\item{driversFile}{Optional. The file containing a list of trait driver gene symbols. If do_performance is TRUE, must provide a driversFile.}
 
 \item{referenceDir}{The directory containing the external, accompanying reference data.}
 
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.}
 
-\item{min_proportion_of_variants_in_top_DHSs}{A threshold proportion of variants that reside in the specific DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).}
-
-\item{include_all_celltypes_in_the_enriched_tissue}{If TRUE, the package will combine annotations across all available cell types within the enriched tissue, not just those in the exact enriched cell type.}
+\item{min_proportion_of_variants_in_top_H3K27ac}{A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).}
 
 \item{do_all_cells}{If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
+
+\item{do_all_cells_in_enriched_tissue}{If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.}
 
 \item{do_manual_weighting}{If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.}
 
@@ -57,9 +58,11 @@ predict_target_genes(
 
 \item{do_XGBoost}{If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.}
 
+\item{do_timestamp}{If TRUE, will save output into a subdirectory timestamped with the data/time of the run.}
+
 \item{contact}{If you are repeatedly running predict_target_genes, you can load the `contact` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.}
 
-\item{DHSs}{If you are repeatedly running predict_target_genes, you can load the `DHSs` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.}
+\item{H3K27ac}{If you are repeatedly running predict_target_genes, you can load the `H3K27ac` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.}
 }
 \value{
 A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).

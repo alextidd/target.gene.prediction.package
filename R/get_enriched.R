@@ -115,7 +115,12 @@ get_enriched <- function(variants,
       contact[[x]][names(contact[[x]]) %in% enriched$celltypes$name[enriched$celltypes$object == "contact"]]
     }, simplify = F, USE.NAMES = T)
   ## expression
-  enriched$expression <- expression[, colnames(expression) %in% enriched$celltypes$name, drop = F]
+  enriched$expression <- expression %>%
+    purrr::map( ~ dplyr::select(., ensg,
+                                dplyr::any_of(enriched$celltypes$name[enriched$celltypes$object == "expression"])))
+  ## expressed
+  enriched$expressed <- expressed %>%
+    dplyr::select(ensg, dplyr::any_of(enriched$celltypes$name[enriched$celltypes$object == "expression"]))
   ## TADs
   enriched$TADs <- TADs[names(TADs) %in% enriched$celltypes$name]
 

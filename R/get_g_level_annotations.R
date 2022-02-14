@@ -3,9 +3,13 @@ get_g_level_annotations <- function(txv_master,
 
   g <- list()
 
+  # gene signal/spec bins
+  g <- enriched$expression %>%
+    purrr::map( ~ .x %>% dplyr::inner_join(txv_master %>% dplyr::distinct(ensg), by = "ensg"))
+  names(g) <- paste0("expression_", names(g))
+
   # gene expressed
-  g$expression <- enriched$expression %>%
-    tibble::as_tibble(rownames = "ensg") %>%
+  g$expressed <- enriched$expressed %>%
     dplyr::inner_join(txv_master %>% dplyr::distinct(ensg), by = "ensg")
 
   # return
