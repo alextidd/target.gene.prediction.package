@@ -22,7 +22,7 @@ get_PR <- function(scores, txv_master, drivers){
 
   # score, max
   pred <- scores %>%
-    dplyr::select(-c(chrom:end)) %>%
+    dplyr::select(-dplyr::any_of(c("chrom", "start", "end"))) %>%
     dplyr::right_join(testable, by = c("cs", "symbol")) %>%
     dplyr::group_by(cs, symbol, driver) %>%
     # get maximum score per CS-x-gene-x-method

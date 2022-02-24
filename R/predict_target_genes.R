@@ -3,15 +3,16 @@
 #' The master, user-facing function of this package.
 #'
 #' @param trait Optional. The name of the trait of interest.
-#' @param tissue_of_interest Optional. The tissue(s) of interest for the trait.
+#' @param celltype_of_interest Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.
+#' @param tissue_of_interest Optional. The tissue(s) of interest for the trait. Only annotations in these tissues will be used to make predictions.  Argument(s) must match the names of tissues in the metadata.
 #' @param outDir The output directory in which to save the predictions. Default is "./out".
 #' @param variantsFile A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
 #' @param driversFile Optional. The file containing a list of trait driver gene symbols. If do_performance is TRUE, must provide a driversFile.
 #' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
 #' @param min_proportion_of_variants_in_top_H3K27ac A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
-#' @param do_all_cells If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
-#' @param do_all_cells_in_enriched_tissue If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.
+#' @param do_all_celltypes If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
+#' @param do_all_celltypes_in_enriched_tissue If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.
 #' @param do_manual_weighting If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.
 #' @param n_unique_manual_weights The number of unique weights for the do_manual_weighting chunk to consider. If NULL, the chunk will consider as many unique weights as there are to_add components. Default is NULL.
 #' @param do_scoring If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.
@@ -23,6 +24,7 @@
 #' @return A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).
 #' @export
 predict_target_genes <- function(trait = NULL,
+                                 celltype_of_interest = NULL,
                                  tissue_of_interest = NULL,
                                  outDir = "out",
                                  variantsFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
@@ -30,8 +32,8 @@ predict_target_genes <- function(trait = NULL,
                                  referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/",
                                  variant_to_gene_max_distance = 2e6,
                                  min_proportion_of_variants_in_top_H3K27ac = 0.05,
-                                 do_all_cells = F,
-                                 do_all_cells_in_enriched_tissue = T,
+                                 do_all_celltypes = F,
+                                 do_all_celltypes_in_enriched_tissue = T,
                                  do_manual_weighting = F,
                                  n_unique_manual_weights = NULL,
                                  do_scoring = T,
@@ -42,18 +44,35 @@ predict_target_genes <- function(trait = NULL,
                                  H3K27ac = NULL){
 
   # for testing internally:
-  # contact = NULL ; H3K27ac = NULL ; setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_cells = F ; do_all_cells_in_enriched_tissue = T ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
+  # contact = NULL ; H3K27ac = NULL ; setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
   # trait="PrCa"; variantsFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/",trait,".VariantList.bed"); driversFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/",trait,".Drivers.txt")
-
-  # for testing externally:
-  # library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp/") ; load_all() ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac/H3K27ac.rds")) ; contact <- readRDS(paste0(referenceDir, "contact/contact.rds")) ; MA <- predict_target_genes(outDir = "out/BC_enriched_cells/", contact = contact, H3K27ac = H3K27ac)
 
   # silence "no visible binding" NOTE for data variables in check()
   . <- NULL
 
   # SETUP ======================================================================================================
-  if(do_XGBoost){do_scoring <- T}
-  if(do_performance & is.null(driversFile)){stop("do_performance = TRUE but no driversFile provided! Performance analysis requires a driversFile.")}
+
+  # metadata for all annotations
+  all_metadata <- read_tibble(paste0(referenceDir, "all_metadata.tsv"), header = T)
+
+  # check options
+  {
+    if (do_XGBoost) { do_scoring <- T }
+    if (do_performance & is.null(driversFile)) { stop("do_performance = TRUE but no driversFile provided! Performance analysis requires a driversFile.") }
+    if (!is.null(tissue_of_interest)) { if(tissue_of_interest %ni% all_metadata$tissue) {
+      stop("Provided tissue_of_interest '", tissue_of_interest, "' is not represented in the available data. Must be one of...\n",
+           paste(unique(all_metadata$tissue), collapse = ", ")) } }
+    if (!is.null(celltype_of_interest)) {
+      coi_annotations <- all_metadata %>% dplyr::filter(celltype == celltype_of_interest) %>% dplyr::pull(object) %>% unique
+      if (celltype_of_interest %ni% all_metadata$celltype) {
+        stop("Provided celltype_of_interest '", celltype_of_interest, "' is not represented in the available data. Must be one of...\n",
+             paste(unique(all_metadata$celltype), collapse = ", ")) }
+      if (length(setdiff(all_metadata$object, coi_annotations)) > 0){
+        stop("Provided celltype_of_interest '", celltype_of_interest, "' does not have a full panel of annotations available.\nMissing annotation(s) = ",
+             paste(setdiff(all_metadata$object, coi_annotations), collapse = ", "),
+             "\nEither re-run at tissue-level (tissue_of_interest = ", unique(all_metadata[all_metadata$celltype == celltype_of_interest,]$tissue),
+             ") or generate celltype-level annotations for '", celltype_of_interest, "' in the reference data.") } }
+  }
 
   # define the output
   out <- list(
@@ -66,10 +85,11 @@ predict_target_genes <- function(trait = NULL,
     PR = "PrecisionRecall.pdf"
   ) ; out <- paste0(outDir,"/", trait, "/") %>%
     {
-      if(!is.null(tissue_of_interest)) paste0(., tissue_of_interest, "/")
-      else if(do_all_cells) paste0(., "all_tissues/")
-      else if(do_all_cells_in_enriched_tissue) paste0(., "enriched_tissues/")
-      else paste0(., "enriched_cells/")
+      if(do_all_celltypes) paste0(., "all_celltypes/")
+      else if(!is.null(tissue_of_interest)) paste0(., tissue_of_interest, "_tissue/")
+      else if(!is.null(celltype_of_interest)) paste0(., celltype_of_interest, "_celltype/")
+      else if(do_all_celltypes_in_enriched_tissue) paste0(., "enriched_tissues/")
+      else paste0(., "enriched_celltypes/")
     } %>%
     { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
     { purrr::map(out, function(x) paste0(., x)) }
@@ -87,14 +107,14 @@ predict_target_genes <- function(trait = NULL,
     check_driver_symbols(., driversFile)
 
   # import the contact data
-  if(is.null(contact)){
+  if (is.null(contact)) {
     cat(" > Importing contact data...\n")
     contact <- readRDS(paste0(referenceDir, "contact.rds"))
   }
 
-  # import the DHS binning data
-  if(is.null(H3K27ac)){
-    cat(" > Importing DHS binning data...\n")
+  # import the H3K27ac-x-DHS binning data
+  if (is.null(H3K27ac)) {
+    cat(" > Importing H3K27ac-x-DHS binning data...\n")
     H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac.rds"))
   }
   specific_H3K27ac_closest_specific_genes <- readRDS(paste0(referenceDir, "specific_H3K27ac_closest_specific_genes.rds"))
@@ -112,9 +132,6 @@ predict_target_genes <- function(trait = NULL,
   cat(" > Importing TAD data...\n")
   TADs <- readRDS(paste0(referenceDir, "TADs.rds"))
 
-  # metadata for all annotations
-  all_metadata <- read_tibble(paste0(referenceDir, "all_metadata.tsv"), header = T)
-
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Performing cell type enrichment...\n")
   enriched <- get_enriched(variants,
@@ -122,13 +139,16 @@ predict_target_genes <- function(trait = NULL,
                            specific_H3K27ac_closest_specific_genes,
                            contact,
                            expression,
+                           expressed,
                            TADs,
                            all_metadata,
                            out,
                            min_proportion_of_variants_in_top_H3K27ac,
+                           # options to manually change annotation groupings (passed by user):
+                           celltype_of_interest,
                            tissue_of_interest,
-                           do_all_cells,
-                           do_all_cells_in_enriched_tissue)
+                           do_all_celltypes,
+                           do_all_celltypes_in_enriched_tissue)
 
   # 2) VARIANTS ======================================================================================================
   # get variant-to-gene universe ('enhancer variants')
@@ -154,7 +174,7 @@ predict_target_genes <- function(trait = NULL,
                         suffix = c("", ".TSS")) %>%
     # restore coords
     dplyr::select(-c(start, end)) %>%
-    dplyr::inner_join(variants, by = c("chrom", "variant", "cs")) %>%
+    dplyr::left_join(variants, by = c("chrom", "variant", "cs")) %>%
     dplyr::transmute(chrom,
                     start.variant = start,
                     end.variant = end,
@@ -227,9 +247,9 @@ predict_target_genes <- function(trait = NULL,
     unlist %>%
     as.data.frame %>%
     dplyr::distinct() %>%
-    dplyr::rename(name = ".") %>%
-    dplyr::left_join(all_metadata %>% dplyr::distinct(name, tissue), by = "name") %>%
-    tibble::column_to_rownames("name")
+    dplyr::rename(celltype = ".") %>%
+    dplyr::left_join(all_metadata %>% dplyr::distinct(celltype, tissue), by = "celltype") %>%
+    tibble::column_to_rownames("celltype")
 
   # celltype-specific annotations have as many columns as there are annotated celltypes
   # non-celltype-specific annotations have one `value` column, which applies across all celltypes
@@ -260,13 +280,13 @@ predict_target_genes <- function(trait = NULL,
   # Generating a single score for each variant-transcript pair, with evidence
   # mean(all non-celltype-specific values, enriched celltype-specific annotations) * (expression binary)
   scores <- master %>% names %>%
-    sapply(function(name) {
+    sapply(function(annotation) {
       # weight annotations
-      master[[name]] %>%
+      master[[annotation]] %>%
         tibble::as_tibble(rownames = "pair") %>%
         dplyr::mutate(
           value_unweighted = value,
-          value = value * { if (name %in% names(weights)) weights[[name]] else 0.33 }
+          value = value * { if (annotation %in% names(weights)) weights[[annotation]] else 0.33 }
         )
     }, USE.NAMES = T, simplify = F) %>%
     dplyr::bind_rows(.id = "prediction_method") %>%
@@ -405,3 +425,4 @@ predict_target_genes <- function(trait = NULL,
 
   return(MA)
 }
+

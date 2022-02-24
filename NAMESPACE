@@ -3,7 +3,6 @@
 export("%>%")
 export(bed_fisher_grouped)
 export(bed_intersect_left)
-export(bind_and_widen_annotations)
 export(check_driver_symbols)
 export(get_PR)
 export(get_performance)

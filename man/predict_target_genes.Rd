@@ -6,6 +6,7 @@
 \usage{
 predict_target_genes(
   trait = NULL,
+  celltype_of_interest = NULL,
   tissue_of_interest = NULL,
   outDir = "out",
  
@@ -15,8 +16,8 @@ predict_target_genes(
   referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/",
   variant_to_gene_max_distance = 2e+06,
   min_proportion_of_variants_in_top_H3K27ac = 0.05,
-  do_all_cells = F,
-  do_all_cells_in_enriched_tissue = T,
+  do_all_celltypes = F,
+  do_all_celltypes_in_enriched_tissue = T,
   do_manual_weighting = F,
   n_unique_manual_weights = NULL,
   do_scoring = T,
@@ -30,7 +31,9 @@ predict_target_genes(
 \arguments{
 \item{trait}{Optional. The name of the trait of interest.}
 
-\item{tissue_of_interest}{Optional. The tissue(s) of interest for the trait.}
+\item{celltype_of_interest}{Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.}
+
+\item{tissue_of_interest}{Optional. The tissue(s) of interest for the trait. Only annotations in these tissues will be used to make predictions.  Argument(s) must match the names of tissues in the metadata.}
 
 \item{outDir}{The output directory in which to save the predictions. Default is "./out".}
 
@@ -44,9 +47,9 @@ predict_target_genes(
 
 \item{min_proportion_of_variants_in_top_H3K27ac}{A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).}
 
-\item{do_all_cells}{If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
+\item{do_all_celltypes}{If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
 
-\item{do_all_cells_in_enriched_tissue}{If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.}
+\item{do_all_celltypes_in_enriched_tissue}{If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.}
 
 \item{do_manual_weighting}{If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.}
 
