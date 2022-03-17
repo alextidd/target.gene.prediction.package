@@ -10,44 +10,45 @@
 #' @param driversFile Optional. The file containing a list of trait driver gene symbols. If do_performance is TRUE, must provide a driversFile.
 #' @param referenceDir The directory containing the external, accompanying reference data.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
-#' @param min_proportion_of_variants_in_top_H3K27ac A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5% (0.05).
+#' @param max_n_drivers_per_CS In performance analysis, the maximum number of driver genes within variant_to_gene_max_distance of the credible set.
+#' @param min_proportion_of_variants_in_top_H3K27ac A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5\% (0.05).
 #' @param do_all_celltypes If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
 #' @param do_all_celltypes_in_enriched_tissue If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.
-#' @param do_manual_weighting If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.
-#' @param n_unique_manual_weights The number of unique weights for the do_manual_weighting chunk to consider. If NULL, the chunk will consider as many unique weights as there are to_add components. Default is NULL.
 #' @param do_scoring If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.
 #' @param do_performance If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting drivers as the targets of nearby variants. Default is FALSE.
 #' @param do_XGBoost If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.
 #' @param do_timestamp If TRUE, will save output into a subdirectory timestamped with the data/time of the run.
-#' @param contact If you are repeatedly running predict_target_genes, you can load the `contact` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.
-#' @param H3K27ac If you are repeatedly running predict_target_genes, you can load the `H3K27ac` object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.
+#' @param contact If you are repeatedly running predict_target_genes, you can load the contact object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.
+#' @param H3K27ac If you are repeatedly running predict_target_genes, you can load the H3K27ac object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.
 #' @return A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).
 #' @export
 predict_target_genes <- function(trait = NULL,
+                                 outDir = "out",
+                                 variantsFile = "example_data/data/BC/VariantList.bed",
+                                 driversFile = NULL,
+                                 referenceDir = "reference_data/data/",
                                  celltype_of_interest = NULL,
                                  tissue_of_interest = NULL,
-                                 outDir = "out",
-                                 variantsFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed",
-                                 driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/breast_cancer_drivers_2021.txt",
-                                 referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/",
                                  variant_to_gene_max_distance = 2e6,
+                                 max_n_drivers_per_CS = Inf,
                                  min_proportion_of_variants_in_top_H3K27ac = 0.05,
                                  do_all_celltypes = F,
                                  do_all_celltypes_in_enriched_tissue = T,
-                                 do_manual_weighting = F,
-                                 n_unique_manual_weights = NULL,
                                  do_scoring = T,
                                  do_performance = T,
                                  do_XGBoost = F,
                                  do_timestamp = F,
                                  contact = NULL,
-                                 H3K27ac = NULL){
+                                 H3K27ac = NULL) {
 
   # for testing internally:
-  # contact = NULL ; H3K27ac = NULL ; setwd("/working/lab_jonathb/alexandT/tgp") ; library(devtools) ; load_all() ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/BC.Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_manual_weighting = F ; n_unique_manual_weights = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F ;
-  # trait="PrCa"; variantsFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/",trait,".VariantList.bed"); driversFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/",trait,".Drivers.txt")
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; contact = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/VariantList.bed" ; driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/Drivers.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; rm(args) ; library(devtools) ; load_all()
+  # trait="PrCa_Giambartolomei2021_expanded"; variantsFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/VariantList.bed"); driversFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/Drivers.txt")
 
-  # silence "no visible binding" NOTE for data variables in check()
+  # capture function arguments
+  args <- as.list(environment())[names(as.list(environment())) %ni% c("contact", "H3K27ac")]
+
+  # silence "no visible binding" NOTE for data variables in devtools::check()
   . <- NULL
 
   # SETUP ======================================================================================================
@@ -81,8 +82,10 @@ predict_target_genes <- function(trait = NULL,
     Annotations = "target_gene_annotations.tsv",
     Predictions = "target_gene_predictions_full.tsv",
     MaxPredictions = "target_gene_predictions_max.tsv",
+    MA = "MA.rds",
     Performance = "performance.tsv",
-    PR = "PrecisionRecall.pdf"
+    PR = "PrecisionRecall.pdf",
+    Args = "arguments_for_predict_target_genes.R"
   ) ; out <- paste0(outDir,"/", trait, "/") %>%
     {
       if(do_all_celltypes) paste0(., "all_celltypes/")
@@ -95,16 +98,14 @@ predict_target_genes <- function(trait = NULL,
     { purrr::map(out, function(x) paste0(., x)) }
   dir.create(out$Base, showWarnings = F, recursive = T)
 
+  # write run arguments to output
+  dput(args, file = out$Args)
+
   # import the user-provided variants
   cat(" > Importing variants...\n")
   variants <- import_BED(
     variantsFile,
     metadata_cols = c("variant", "cs"))
-
-  # import user-provided drivers and check that all symbols are in the GENCODE database
-  cat(" > Importing driver genes...\n")
-  drivers <- read_tibble(driversFile)$V1 %>%
-    check_driver_symbols(., driversFile)
 
   # import the contact data
   if (is.null(contact)) {
@@ -155,16 +156,6 @@ predict_target_genes <- function(trait = NULL,
   cat("2) Finding all genes near variants...\n")
 
   # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs < variant_to_gene_max_distance apart)
-  nearby_genes <- variants %>%
-    # all genes within variant_to_gene_max_distance
-    valr::bed_slop(both = variant_to_gene_max_distance,
-                   genome = ChrSizes,
-                   trim = T) %>%
-    valr::bed_intersect(., TSSs,
-                        suffix = c("", ".TSS")) %>%
-    # fix coords
-    dplyr::select(-c(start, -end))
-
   txv_master <- variants %>%
     # all genes within 2Mb
     valr::bed_slop(both = variant_to_gene_max_distance,
@@ -181,7 +172,7 @@ predict_target_genes <- function(trait = NULL,
                     start.TSS, end.TSS,
                     distance = abs(end - end.TSS),
                     variant,
-                    pair = paste0(variant, "|", enst.TSS),
+                    pair = paste0(cs, ":", variant, "|", enst.TSS),
                     cs,
                     enst = enst.TSS,
                     symbol = symbol.TSS,
@@ -233,7 +224,7 @@ predict_target_genes <- function(trait = NULL,
 
   # 4) ALL INPUTS ======================================================================================================
   # Master variant-transcript matrix list
-  # -> wide-format (one row per transcript|variant pair, one column per celltype)
+  # -> wide-format (one row per cs:variant|transcript pair, one column per celltype)
   # -> only variant-transcript combinations within 2Mb are included
   # -> pair ID rownames: variant|enst
   # Each annotation will be aggregated across samples, taking the maximum value per pair
@@ -254,7 +245,7 @@ predict_target_genes <- function(trait = NULL,
   # celltype-specific annotations have as many columns as there are annotated celltypes
   # non-celltype-specific annotations have one `value` column, which applies across all celltypes
   MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
-  saveRDS(MA, file = paste0(out$Base, "MA.rds"))
+  saveRDS(MA, file = out$MA)
 
   # 5) SCORING ======================================================================================================
   if(do_scoring){
@@ -315,9 +306,9 @@ predict_target_genes <- function(trait = NULL,
     ) %>%
     # select columns
     dplyr::select(
-      chrom, start, end,
-      variant,
       cs,
+      chrom:end,
+      variant,
       enst,
       symbol,
       score,
@@ -333,13 +324,13 @@ predict_target_genes <- function(trait = NULL,
     dplyr::group_by(cs) %>%
     dplyr::mutate(max = score == max(score)) %>%
     # order
-    dplyr::select(chrom:end, variant, cs, symbol, score, max) %>%
+    dplyr::select(cs, chrom:end, variant, symbol, score, max) %>%
     dplyr::arrange(-score)
 
   # max prediction per CS to save
   max <- predictions %>%
     dplyr::filter(max) %>%
-    dplyr::select(variant, cs, symbol)
+    dplyr::select(cs, variant, symbol)
 
   # write tables
   write_tibble(scores, filename = out$Annotations)
@@ -350,14 +341,20 @@ predict_target_genes <- function(trait = NULL,
   # 6) PERFORMANCE ======================================================================================================
   if(do_performance){
   cat("6) Measuring tgp performance...\n")
-  # Generate PR curves (model performance metric)
+
+  # import user-provided drivers and check that all symbols are in the GENCODE database
+  cat(" > Importing driver genes...\n")
+  drivers <- read_tibble(driversFile)$V1 %>%
+    check_driver_symbols(driversFile)
+
+  # Generate PR curves (model performance metric) (only testing protein-coding genes)
   performance <- scores %>%
     # get performance
-    get_PR(txv_master, drivers) %>%
+    get_PR(txv_master, drivers, pcENSGs, max_n_drivers_per_CS) %>%
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
-  pdf(out$PR, height = 10, width = 10, onefile = T)
+  pdf(out$PR, height = 10, width = 15, onefile = T)
     # PR score + max
     print(
       performance %>%
@@ -379,6 +376,22 @@ predict_target_genes <- function(trait = NULL,
       performance %>%
         plot_AUPRC +
         ggplot2::ggtitle(out$Base %>% gsub("/", " ", .))
+    )
+    print(
+      performance$summary %>%
+        dplyr::mutate(AUPRC = PR_AUC) %>%
+        tidyr::pivot_longer(cols = c(Precision, Recall, AUPRC),
+                            names_to = "metric",
+                            values_to = "performance") %>%
+        ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, PR_AUC),
+                                     y = performance,
+                                     fill = level)) +
+        ggplot2::geom_col() +
+        ggplot2::facet_wrap(~metric) +
+        ggplot2::coord_flip() +
+        ggplot2::theme_classic() +
+        ggplot2::theme(axis.title.x = ggplot2::element_blank()) +
+        ggsci::scale_fill_igv()
     )
   dev.off()
 

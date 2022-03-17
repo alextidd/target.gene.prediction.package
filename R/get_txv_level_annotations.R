@@ -15,18 +15,18 @@ get_txv_level_annotations <- function(variants,
 
   # variant-TSS inverse distance score method
   txv$inv_distance <- distance %>%
-    dplyr::transmute(variant, enst,
+    dplyr::transmute(cs, variant, enst,
                      value = inv_distance)
 
   # variant-TSS distance rank method
   txv$inv_distance_rank <- distance %>%
-    dplyr::transmute(variant, enst,
+    dplyr::transmute(cs, variant, enst,
                      value = inv_distance_rank)
 
   # closest variant-TSS method
   txv$closest <- distance %>%
     dplyr::filter(inv_distance_rank == 1) %>%
-    dplyr::transmute(variant, enst)
+    dplyr::transmute(cs, variant, enst)
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
@@ -40,16 +40,16 @@ get_txv_level_annotations <- function(variants,
             SNPend = variants %>% dplyr::mutate(start = end),
             TSSend = TSSs,
             bedpe = .) %>%
-          dplyr::transmute(variant, enst,
+          dplyr::transmute(cs, variant, enst,
                            InteractionID,
                            value = score) %>%
-          dplyr::inner_join(distance %>% dplyr::select(variant, enst), by = c("variant", "enst"))
+          dplyr::inner_join(distance %>% dplyr::select(cs, variant, enst), by = c("cs", "variant", "enst"))
       }, simplify = F, USE.NAMES = T) %>%
         dplyr::bind_rows(.id = "celltype") %>%
         #dplyr::group_by(celltype, variant, enst) %>%
         #dplyr::count()
         #dplyr::summarise(value = sum(value)) %>%
-        tidyr::pivot_wider(id_cols = c(variant, enst),
+        tidyr::pivot_wider(id_cols = c(cs, variant, enst),
                            names_from = celltype,
                            values_from = value)
     }, simplify = F, USE.NAMES = T)
@@ -65,17 +65,16 @@ get_txv_level_annotations <- function(variants,
 
   # get variants at promoters
   txv$promoter <- variants %>%
-    dplyr::select(chrom:variant) %>%
+    dplyr::select(chrom:end, variant, cs) %>%
     # Get variants within promoter regions
     bed_intersect_left(
       promoters,
       keepBcoords = F, keepBmetadata = T) %>%
-    dplyr::transmute(variant,
-                     enst)
+    dplyr::transmute(cs, variant, enst)
 
   # get variants at promoters - score by sum of signal and specificity per celltype at the DHS (~promoter activity)
-  txv$promoter_DHS_bins_sum <- variants %>%
-    dplyr::select(chrom:variant) %>%
+  txv$promoter_H3K27ac_bins_sum <- variants %>%
+    dplyr::select(chrom:end, variant, cs) %>%
     # Get variants within promoter regions
     bed_intersect_left(
       promoters,
@@ -84,10 +83,10 @@ get_txv_level_annotations <- function(variants,
     intersect_H3K27ac(list(),
                    query = .,
                    H3K27ac = enriched$H3K27ac,
-                   variant, enst) %>%
+                   cs, variant, enst) %>%
     purrr::reduce(dplyr::bind_rows) %>%
     # Sum specificity + signal bin per promoter variant per cell type
-    dplyr::group_by(variant, enst) %>%
+    dplyr::group_by(cs, variant, enst) %>%
     dplyr::summarise(dplyr::across(where(is.numeric), sum)) %>%
     dplyr::ungroup()
 
@@ -97,8 +96,7 @@ get_txv_level_annotations <- function(variants,
     bed_intersect_left(
       introns, .,
       keepBcoords = F, keepBmetadata = T) %>%
-    dplyr::transmute(variant,
-                     enst)
+    dplyr::transmute(cs, variant, enst)
 
   # exonic (coding) variants
   txv$exon <- variants %>%
@@ -106,24 +104,23 @@ get_txv_level_annotations <- function(variants,
     bed_intersect_left(
       exons, .,
       keepBcoords = F, keepBmetadata = T) %>%
-    dplyr::transmute(variant,
-                     enst)
+    dplyr::transmute(cs, variant, enst)
 
   # TADs
   TADs_w_ID <- enriched$TADs %>%
     purrr::map(~ dplyr::mutate(., TAD = paste0("i.", dplyr::row_number()))) %>%
     dplyr::bind_rows(.id = "celltype")
-  txv$TADs <- dplyr::full_join(
+  txv$TADs <- dplyr::inner_join(
     bed_intersect_left(
       variants, TADs_w_ID, keepBcoords = F) %>%
-      dplyr::select(variant, TAD, celltype),
+      dplyr::select(cs, variant, TAD, celltype),
     bed_intersect_left(
       TSSs, TADs_w_ID, keepBcoords = F) %>%
       dplyr::select(enst, TAD, celltype),
     by = c("TAD", "celltype")
   ) %>%
-    dplyr::transmute(variant, enst, celltype, value = 1) %>%
-    tidyr::pivot_wider(id_cols = c("variant", "enst"),
+    dplyr::transmute(cs, variant, enst, celltype, value = 1) %>%
+    tidyr::pivot_wider(id_cols = c("cs", "variant", "enst"),
                        names_from = celltype,
                        values_from = value)
 

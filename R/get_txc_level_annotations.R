@@ -3,8 +3,7 @@ get_txc_level_annotations <- function(txv,
 
   # multicontact statistics within each gene-x-cs-x-experiment combination
   multicontact <- txv[grepl("contact", names(txv)) & !grepl("binary", names(txv))] %>%
-    purrr::map(~ dplyr::left_join(., variants %>% dplyr::select(variant, cs), by = "variant") %>%
-                 dplyr::group_by(cs, enst))
+    purrr::map(~ dplyr::group_by(., cs, enst))
 
   # count number of loops between gene and CS
   n_multi <- multicontact %>%

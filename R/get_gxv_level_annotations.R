@@ -6,22 +6,21 @@ get_gxv_level_annotations <- function(variants,
 
   # variant-gene closest distance (among all of the gene's transcripts' TSSs)
   gxv$inv_distance_rank <- txv_master %>%
-    dplyr::group_by(variant, symbol) %>%
+    dplyr::group_by(cs, variant, symbol) %>%
     dplyr::summarise(distance = min(distance)) %>%
     dplyr::group_by(variant) %>%
     dplyr::transmute(
-      symbol,
-      variant,
+      cs, variant, symbol,
       value = 1/rank(distance, ties.method = "min")
     )
 
-  # variants in specific  x genes in specific H3K27ac
+  # specific variants x genes in specific H3K27ac
   gxv$specific_H3K27ac_closest_specific_genes <- variants %>%
     # intersect with specific_H3K27ac_closest_specific_genes
     bed_intersect_left(enriched$specific_H3K27ac_closest_specific_genes, keepBcoords = F) %>%
     tidyr::pivot_longer(-c(chrom:cs), names_to = "celltype", values_to = "ensg") %>%
     dplyr::filter(!is.na(ensg)) %>%
-    dplyr::distinct(variant, celltype, ensg) %>%
+    dplyr::distinct(cs, variant, celltype, ensg) %>%
     dplyr::mutate(value = 1) %>%
     tidyr::pivot_wider(id_cols = -c(celltype, value),
                        names_from = celltype, values_from = value)
@@ -31,7 +30,7 @@ get_gxv_level_annotations <- function(variants,
     variants %>%
       dplyr::inner_join(revel_df, by = c("chrom" = "chrom", "end" = "position")) %>%
       tidyr::separate_rows(ensgs) %>%
-      dplyr::transmute(variant, ensg = ensgs, ...)
+      dplyr::transmute(cs, variant, ensg = ensgs, ...)
   }
 
   # missense variants

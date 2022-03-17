@@ -1,23 +1,15 @@
-#' Get PR statistics for the predictions
-#'
-#' Get PR and AUPRC for predictions
-#'
-#' @param scores scores object passed from predict_target_genes
-#' @param txv_master txv_master object passed from predict_target_genes
-#' @param drivers drivers object passed from predict_target_genes
-#'
-#' @return `PR` tibble
-#' @export
-get_PR <- function(scores, txv_master, drivers){
+get_PR <- function(scores, txv_master, drivers, pcENSGs, max_n_drivers_per_CS){
 
   performance <- list()
 
   # get all testable CS-gene pairs
   testable <- txv_master %>%
+    # only test protein-coding target predictions against drivers (assumes all drivers are protein-coding)
+    dplyr::filter(ensg %in% pcENSGs) %>%
     # add drivers
     dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
-    # get predictions only in CSs with a driver within max prediction distance for performance evaluation
-    get_testable() %>%
+    # only test predictions in CSs with a driver within max prediction distance for performance evaluation
+    get_testable(max_n_drivers_per_CS) %>%
     dplyr::distinct(cs, symbol, driver)
 
   # score, max
@@ -49,30 +41,6 @@ get_PR <- function(scores, txv_master, drivers){
     ) %>%
     dplyr::ungroup()
 
-  # get summary statistics (various performance metrics)
-  performance$summary <- pred %>%
-    # score is not binary, cannot be summarised, filter out
-    dplyr::filter(!grepl("score", prediction_type)) %>%
-    dplyr::mutate(prediction = as.logical(prediction)) %>%
-    dplyr::group_by(prediction_method, prediction_type) %>%
-    dplyr::group_modify(
-      ~ data.frame(True = .x %>% condition_n_gene_x_cs_pairs(driver),
-                   Positive = .x %>% condition_n_gene_x_cs_pairs(prediction),
-                   TP = .x %>% condition_n_gene_x_cs_pairs(prediction & driver),
-                   FP = .x %>% condition_n_gene_x_cs_pairs(prediction & !driver),
-                   TN = .x %>% condition_n_gene_x_cs_pairs(!prediction & !driver),
-                   FN = .x %>% condition_n_gene_x_cs_pairs(!prediction & driver))
-    ) %>%
-    dplyr::rowwise() %>%
-    dplyr::mutate(p = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$p.value,
-                  OR = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$estimate,
-                  Precision = TP / (TP + FP),
-                  Recall = TP / (TP + FN),
-                  Sensitivity = TP / (TP + FN),
-                  Specificity = TN / (TN + FP),
-                  Fscore = (Precision * Recall) / (Precision + Recall)) %>%
-    dplyr::ungroup()
-
   # format for PR function input
   PR_in <- pred %>%
     dplyr::select(prediction_type, prediction_method, prediction, driver) %>%
@@ -92,13 +60,37 @@ get_PR <- function(scores, txv_master, drivers){
                      by = c("prediction_method", "prediction_type")) %>%
     dplyr::ungroup()
 
-  # Add area under curve metric to summary
-  performance$summary <- performance$summary %>%
+  # get summary statistics (various performance metrics)
+  performance$summary <- pred %>%
+    # score is not binary, cannot be summarised, filter out
+    dplyr::filter(!grepl("score", prediction_type)) %>%
+    dplyr::mutate(prediction = as.logical(prediction)) %>%
+    dplyr::group_by(prediction_method, prediction_type) %>%
+    dplyr::group_modify(
+      ~ data.frame(True = .x %>% condition_n_gene_x_cs_pairs(driver),
+                   Positive = .x %>% condition_n_gene_x_cs_pairs(prediction),
+                   TP = .x %>% condition_n_gene_x_cs_pairs(prediction & driver),
+                   FP = .x %>% condition_n_gene_x_cs_pairs(prediction & !driver),
+                   TN = .x %>% condition_n_gene_x_cs_pairs(!prediction & !driver),
+                   FN = .x %>% condition_n_gene_x_cs_pairs(!prediction & driver),
+                   n_drivers = dplyr::filter(.x, driver)$symbol %>% dplyr::n_distinct())
+    ) %>%
+    dplyr::rowwise() %>%
+    dplyr::mutate(p_value = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$p.value,
+                  OR = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$estimate,
+                  Precision = TP / (TP + FP),
+                  Recall = TP / (TP + FN),
+                  Sensitivity = TP / (TP + FN),
+                  Specificity = TN / (TN + FP),
+                  Fscore = (Precision * Recall) / (Precision + Recall)) %>%
+    dplyr::ungroup() %>%
+    # add area under curve metric to summary
     dplyr::left_join(performance$PR %>%
                        dplyr::distinct(prediction_method,
                                        prediction_type,
                                        PR_AUC),
                      by = c("prediction_method", "prediction_type"))
+
   return(performance)
 
 }
