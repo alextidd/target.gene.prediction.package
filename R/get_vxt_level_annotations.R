@@ -1,12 +1,12 @@
-get_txv_level_annotations <- function(variants,
-                                      txv_master,
+get_vxt_level_annotations <- function(variants,
+                                      vxt_master,
                                       variant_to_gene_max_distance,
                                       enriched) {
 
-  txv <- list()
+  vxt <- list()
 
   # TSS distance scoring method (these pairings are the only ones to consider)
-  distance <- txv_master %>%
+  distance <- vxt_master %>%
     dplyr::group_by(variant) %>%
     # Calculate inverse of the absolute bp distance for each variant-transcript pair
     dplyr::mutate(inv_distance = 1/distance,
@@ -14,23 +14,23 @@ get_txv_level_annotations <- function(variants,
                   inv_distance_rank = 1/rank(distance, ties.method = "min"))
 
   # variant-TSS inverse distance score method
-  txv$inv_distance <- distance %>%
+  vxt$inv_distance <- distance %>%
     dplyr::transmute(cs, variant, enst,
                      value = inv_distance)
 
   # variant-TSS distance rank method
-  txv$inv_distance_rank <- distance %>%
+  vxt$inv_distance_rank <- distance %>%
     dplyr::transmute(cs, variant, enst,
                      value = inv_distance_rank)
 
   # closest variant-TSS method
-  txv$closest <- distance %>%
+  vxt$closest <- distance %>%
     dplyr::filter(inv_distance_rank == 1) %>%
     dplyr::transmute(cs, variant, enst)
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  txv_contact_scores <- enriched$contact %>% names %>%
+  vxt_contact_scores <- enriched$contact %>% names %>%
     sapply(function(assay){
       sapply(enriched$contact[[assay]] %>% names, function(celltype){
         # Intersect with the contact data
@@ -53,18 +53,18 @@ get_txv_level_annotations <- function(variants,
                            names_from = celltype,
                            values_from = value)
     }, simplify = F, USE.NAMES = T)
-  names(txv_contact_scores) <- paste0("contact_", names(txv_contact_scores))
-  txv <- c(txv, txv_contact_scores)
+  names(vxt_contact_scores) <- paste0("contact_", names(vxt_contact_scores))
+  vxt <- c(vxt, vxt_contact_scores)
 
   # contact binary
-  txv_contact_binary <- txv_contact_scores %>%
+  vxt_contact_binary <- vxt_contact_scores %>%
     purrr::map(~ dplyr::mutate(., dplyr::across(where(is.numeric), ~ dplyr::case_when(is.na(.) ~ 0,
                                                                                       TRUE ~ 1))))
-  names(txv_contact_binary) <- paste0(names(txv_contact_binary), "_", "binary")
-  txv <- c(txv, txv_contact_binary)
+  names(vxt_contact_binary) <- paste0(names(vxt_contact_binary), "_", "binary")
+  vxt <- c(vxt, vxt_contact_binary)
 
   # get variants at promoters
-  txv$promoter <- variants %>%
+  vxt$promoter <- variants %>%
     dplyr::select(chrom:end, variant, cs) %>%
     # Get variants within promoter regions
     bed_intersect_left(
@@ -73,7 +73,7 @@ get_txv_level_annotations <- function(variants,
     dplyr::transmute(cs, variant, enst)
 
   # get variants at promoters - score by sum of signal and specificity per celltype at the DHS (~promoter activity)
-  txv$promoter_H3K27ac_bins_sum <- variants %>%
+  vxt$promoter_H3K27ac_bins_sum <- variants %>%
     dplyr::select(chrom:end, variant, cs) %>%
     # Get variants within promoter regions
     bed_intersect_left(
@@ -91,7 +91,7 @@ get_txv_level_annotations <- function(variants,
     dplyr::ungroup()
 
   # intronic variants
-  txv$intron <- variants %>%
+  vxt$intron <- variants %>%
     # Get variants within introns
     bed_intersect_left(
       introns, .,
@@ -99,7 +99,7 @@ get_txv_level_annotations <- function(variants,
     dplyr::transmute(cs, variant, enst)
 
   # exonic (coding) variants
-  txv$exon <- variants %>%
+  vxt$exon <- variants %>%
     # Get variants within exons
     bed_intersect_left(
       exons, .,
@@ -110,7 +110,7 @@ get_txv_level_annotations <- function(variants,
   TADs_w_ID <- enriched$TADs %>%
     purrr::map(~ dplyr::mutate(., TAD = paste0("i.", dplyr::row_number()))) %>%
     dplyr::bind_rows(.id = "celltype")
-  txv$TADs <- dplyr::inner_join(
+  vxt$TADs <- dplyr::inner_join(
     bed_intersect_left(
       variants, TADs_w_ID, keepBcoords = F) %>%
       dplyr::select(cs, variant, TAD, celltype),
@@ -125,6 +125,6 @@ get_txv_level_annotations <- function(variants,
                        values_from = value)
 
   # return
-  names(txv) <- paste0("txv_", names(txv))
-  return(txv)
+  names(vxt) <- paste0("vxt_", names(vxt))
+  return(vxt)
 }

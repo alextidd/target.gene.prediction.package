@@ -1,9 +1,9 @@
-get_PR <- function(scores, txv_master, drivers, pcENSGs, max_n_drivers_per_CS){
+get_PR <- function(scores, vxt_master, drivers, pcENSGs, max_n_drivers_per_CS){
 
   performance <- list()
 
   # get all testable CS-gene pairs
-  testable <- txv_master %>%
+  testable <- vxt_master %>%
     # only test protein-coding target predictions against drivers (assumes all drivers are protein-coding)
     dplyr::filter(ensg %in% pcENSGs) %>%
     # add drivers

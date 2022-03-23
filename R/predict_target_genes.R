@@ -156,7 +156,7 @@ predict_target_genes <- function(trait = NULL,
   cat("2) Finding all genes near variants...\n")
 
   # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs < variant_to_gene_max_distance apart)
-  txv_master <- variants %>%
+  vxt_master <- variants %>%
     # all genes within 2Mb
     valr::bed_slop(both = variant_to_gene_max_distance,
                    genome = ChrSizes,
@@ -187,7 +187,7 @@ predict_target_genes <- function(trait = NULL,
   v <- get_v_level_annotations(variants,
                                H3K27ac,
                                enriched,
-                               txv_master,
+                               vxt_master,
                                DHSs)
 
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
@@ -197,40 +197,40 @@ predict_target_genes <- function(trait = NULL,
 
   # 3c) GENE-LEVEL INPUTS ===
   cat(" > G\tAnnotating genes...\n")
-  g <- get_g_level_annotations(txv_master,
+  g <- get_g_level_annotations(vxt_master,
                                enriched)
 
   # 3d) CS-LEVEL INPUTS ====
   cat(" > C\tAnnotating credible sets...\n")
   c <- get_c_level_annotations(variants)
 
-  # 3e) TRANSCRIPT-X-VARIANT-LEVEL INPUTS ====
-  cat(" > TxV\tAnnotating transcript x variant pairs...\n")
-  txv <- get_txv_level_annotations(variants,
-                                   txv_master,
+  # 3e) VARIANT-x-TRANSCRIPT-LEVEL INPUTS ====
+  cat(" > VxT\tAnnotating variant x transcript pairs...\n")
+  vxt <- get_VXT_level_annotations(variants,
+                                   vxt_master,
                                    variant_to_gene_max_distance,
                                    enriched)
 
-  # 3f) GENE-X-VARIANT-LEVEL INPUTS ===
-  cat(" > GxV\tAnnotating gene x variant pairs...\n")
-  gxv <- get_gxv_level_annotations(variants,
-                                   txv_master,
+  # 3f) VARIANT-X-GENE-LEVEL INPUTS ===
+  cat(" > VxG\tAnnotating variant x gene pairs...\n")
+  vxg <- get_vxg_level_annotations(variants,
+                                   vxt_master,
                                    enriched)
 
-  # 3g) TRANSCRIPT-X-CS-LEVEL INPUTS ====
-  cat(" > TxC\tAnnotating transcript x credible set pairs...\n")
-  txc <- get_txc_level_annotations(txv,
+  # 3g) CS-X-TRANSCRIPT-LEVEL INPUTS ====
+  cat(" > CxT\tAnnotating credible set x transcript pairs...\n")
+  cxt <- get_cxt_level_annotations(vxt,
                                    variants)
 
   # 4) ALL INPUTS ======================================================================================================
-  # Master variant-transcript matrix list
+  # Master variant-x-transcript matrix list
   # -> wide-format (one row per cs:variant|transcript pair, one column per celltype)
   # -> only variant-transcript combinations within 2Mb are included
   # -> pair ID rownames: variant|enst
   # Each annotation will be aggregated across samples, taking the maximum value per pair
   cat("4) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
-  master <- c(v, t, g, c, txv, gxv, txc) %>%
-    purrr::map(~ matricise_by_pair(., txv_master))
+  master <- c(v, t, g, c, vxt, vxg, cxt) %>%
+    purrr::map(~ matricise_by_pair(., vxt_master))
 
   # MultiAssayExperiment colData
   colData <- master %>%
@@ -253,13 +253,13 @@ predict_target_genes <- function(trait = NULL,
 
   # declare weights (ALL OTHERS = 0.33)
   weights <- list(
-    txv_TADs = 1,
-    txv_inv_distance = 1,
-    gxv_specific_H3K27ac_closest_specific_genes = 0, # 1
-    txv_intron = 1,
-    gxv_missense = 1,
-    gxv_nonsense = 1,
-    gxv_splicesite = 1,
+    vxt_TADs = 1,
+    vxt_inv_distance = 1,
+    vxg_specific_H3K27ac_closest_specific_genes = 0, # 1
+    vxt_intron = 1,
+    vxg_missense = 1,
+    vxg_nonsense = 1,
+    vxg_splicesite = 1,
     t_H3K27ac_signal = 1,
     g_expressed = 1,
     g_expression_signal = 1,
@@ -296,7 +296,7 @@ predict_target_genes <- function(trait = NULL,
     ) %>%
     # get CSs and symbols
     dplyr::right_join(
-      txv_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
+      vxt_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
                                    pair, variant, cs, enst, symbol),
       by = "pair"
     ) %>%
@@ -350,7 +350,7 @@ predict_target_genes <- function(trait = NULL,
   # Generate PR curves (model performance metric) (only testing protein-coding genes)
   performance <- scores %>%
     # get performance
-    get_PR(txv_master, drivers, pcENSGs, max_n_drivers_per_CS) %>%
+    get_PR(vxt_master, drivers, pcENSGs, max_n_drivers_per_CS) %>%
     # add annotation level info
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 

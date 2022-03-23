@@ -1,11 +1,11 @@
-get_gxv_level_annotations <- function(variants,
-                                      txv_master,
+get_vxg_level_annotations <- function(variants,
+                                      vxt_master,
                                       enriched){
 
-  gxv <- list()
+  vxg <- list()
 
   # variant-gene closest distance (among all of the gene's transcripts' TSSs)
-  gxv$inv_distance_rank <- txv_master %>%
+  vxg$inv_distance_rank <- vxt_master %>%
     dplyr::group_by(cs, variant, symbol) %>%
     dplyr::summarise(distance = min(distance)) %>%
     dplyr::group_by(variant) %>%
@@ -15,7 +15,7 @@ get_gxv_level_annotations <- function(variants,
     )
 
   # specific variants x genes in specific H3K27ac
-  gxv$specific_H3K27ac_closest_specific_genes <- variants %>%
+  vxg$specific_H3K27ac_closest_specific_genes <- variants %>%
     # intersect with specific_H3K27ac_closest_specific_genes
     bed_intersect_left(enriched$specific_H3K27ac_closest_specific_genes, keepBcoords = F) %>%
     tidyr::pivot_longer(-c(chrom:cs), names_to = "celltype", values_to = "ensg") %>%
@@ -34,15 +34,15 @@ get_gxv_level_annotations <- function(variants,
   }
 
   # missense variants
-  gxv$missense <- variants %>% intersect_REVEL(missense, value = score)
+  vxg$missense <- variants %>% intersect_REVEL(missense, value = score)
 
   # nonsense variants
-  gxv$nonsense <- variants %>% intersect_REVEL(nonsense)
+  vxg$nonsense <- variants %>% intersect_REVEL(nonsense)
 
   # splice site variants
-  gxv$splicesite <- variants %>% intersect_REVEL(splicesite)
+  vxg$splicesite <- variants %>% intersect_REVEL(splicesite)
 
   # prefix names
-  names(gxv) <- paste0("gxv_", names(gxv))
-  return(gxv)
+  names(vxg) <- paste0("vxg_", names(vxg))
+  return(vxg)
 }

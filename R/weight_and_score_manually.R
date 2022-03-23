@@ -8,7 +8,7 @@
 #                 }
 weight_and_score_manually <- function(MA,
                                       celltype_of_interest,
-                                      txv_master,
+                                      vxt_master,
                                       drivers,
                                       to_add = NULL,
                                       to_multiply = NULL,
@@ -18,7 +18,7 @@ weight_and_score_manually <- function(MA,
 
   # subset MA
   sub_MA <- MultiAssayExperiment::subsetByColData(MA, c("value", celltype_of_interest))
-  pair_info <- txv_master %>% dplyr::select(pair, variant, cs, symbol)
+  pair_info <- vxt_master %>% dplyr::select(pair, variant, cs, symbol)
 
   # get all possible weights
   model_weights <- to_add %>%
@@ -58,7 +58,7 @@ weight_and_score_manually <- function(MA,
 
       # test performance
       out <- scores %>%
-        get_PR(txv_master, drivers, score) %>%
+        get_PR(vxt_master, drivers, score) %>%
         purrr::map(~ dplyr::mutate(., model = i))
 
       # return

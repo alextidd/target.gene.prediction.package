@@ -1,7 +1,7 @@
 get_v_level_annotations <- function(variants,
                                     H3K27ac,
                                     enriched,
-                                    txv_master,
+                                    vxt_master,
                                     DHSs){
 
   v <- list()
@@ -21,7 +21,7 @@ get_v_level_annotations <- function(variants,
     dplyr::distinct(variant)
 
   # calculate n genes near each variant
-  v <- txv_master %>%
+  v <- vxt_master %>%
     dplyr::group_by(variant) %>%
     dplyr::summarise(inv_n_genes = 1/dplyr::n_distinct(symbol),
                      inv_n_transcripts = 1/dplyr::n_distinct(enst)) %>%

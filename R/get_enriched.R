@@ -38,8 +38,8 @@ get_enriched <- function(variants,
     cat("Applying annotations from all available cell types (`do_all_celltypes` = T).\n")
     # Include all celltypes
     enriched[["celltypes"]] <- all_metadata
-    cat("All tissues: ") ; message(paste(unique(enriched$celltypes$tissue), collapse = ", "))
-    cat("All celltypes: ") ; message(paste(unique(enriched$celltypes$celltype), collapse = ", "))
+    cat("All tissues: ") ; enriched$celltypes$tissue %>% unique %>% paste(collapse = ", ") %>% cat('\n')
+    cat("All celltypes: ") ; enriched$celltypes$celltype %>% unique %>% paste(collapse = ", ") %>% cat('\n')
 
   } else {
 
@@ -81,10 +81,15 @@ get_enriched <- function(variants,
 
     # Error message if no cell type exceeds min_proportion_of_variants_in_top_H3K27ac
     if(nrow(thresholded_counts) == 0){
+      max_prop <- counts %>%
+        dplyr::ungroup() %>%
+        dplyr::filter(proportion_of_variants_in_top_H3K27ac == max(proportion_of_variants_in_top_H3K27ac))
       stop(message(
         "No cell types had more than ",
         min_proportion_of_variants_in_top_H3K27ac*100, "% of ", trait,
         " variants in their most specific H3K27ac. Choose a lower `min_proportion_of_variants_in_top_H3K27ac` cut-off or specify a `tissue_of_interest` to skip this enrichment step.",
+        "\nCelltype(s) with the highest proportion = ", paste(max_prop$celltype, collapse = ", "),
+        "\nHighest proportion = ", unique(max_prop$proportion_of_variants_in_top_H3K27ac),
         "\nEnrichment analysis saved to ", out$TissueEnrichment))
     }
 
