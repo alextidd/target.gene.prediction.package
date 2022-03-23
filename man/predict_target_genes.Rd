@@ -7,17 +7,16 @@
 predict_target_genes(
   trait = NULL,
   outDir = "out",
-  variantsFile = "example_data/data/BC/BC.VariantList.bed",
-  driversFile = "example_data/data/BC/BC.Drivers.txt",
+  variantsFile = "example_data/data/BC/VariantList.bed",
+  known_genes_file = NULL,
   referenceDir = "reference_data/data/",
   celltype_of_interest = NULL,
   tissue_of_interest = NULL,
   variant_to_gene_max_distance = 2e+06,
+  max_n_known_genes_per_CS = Inf,
   min_proportion_of_variants_in_top_H3K27ac = 0.05,
   do_all_celltypes = F,
   do_all_celltypes_in_enriched_tissue = T,
-  do_manual_weighting = F,
-  n_unique_manual_weights = NULL,
   do_scoring = T,
   do_performance = T,
   do_XGBoost = F,
@@ -33,7 +32,7 @@ predict_target_genes(
 
 \item{variantsFile}{A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants}
 
-\item{driversFile}{Optional. The file containing a list of trait driver gene symbols. If do_performance is TRUE, must provide a driversFile.}
+\item{known_genes_file}{Optional. The file containing a list of trait known gene symbols. If do_performance is TRUE, must provide a known_genes_file.}
 
 \item{referenceDir}{The directory containing the external, accompanying reference data.}
 
@@ -43,19 +42,17 @@ predict_target_genes(
 
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.}
 
+\item{max_n_known_genes_per_CS}{In performance analysis, the maximum number of known genes within variant_to_gene_max_distance of the credible set.}
+
 \item{min_proportion_of_variants_in_top_H3K27ac}{A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5\% (0.05).}
 
 \item{do_all_celltypes}{If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
 
 \item{do_all_celltypes_in_enriched_tissue}{If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.}
 
-\item{do_manual_weighting}{If TRUE, runs the manual weighting chunk of the script (weight_and_score_manually) to test out different combinations of annotations to generate a score. Default is FALSE.}
-
-\item{n_unique_manual_weights}{The number of unique weights for the do_manual_weighting chunk to consider. If NULL, the chunk will consider as many unique weights as there are to_add components. Default is NULL.}
-
 \item{do_scoring}{If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.}
 
-\item{do_performance}{If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting drivers as the targets of nearby variants. Default is FALSE.}
+\item{do_performance}{If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting known genes as the targets of nearby variants. Default is FALSE.}
 
 \item{do_XGBoost}{If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.}
 

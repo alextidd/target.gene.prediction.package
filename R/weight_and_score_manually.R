@@ -1,6 +1,6 @@
 # This function takes vectors of MAE assay names to add / multiply together and generates predictions from
 # those components with different combinatins of weightings. It then measures the performance of each model
-# and returns a tibble with the models' weights and the models' performance at predicting drivers as the target
+# and returns a tibble with the models' weights and the models' performance at predicting known_genes as the target
 # genes of variants in nearby CSs
 # model building: for(W in model_weights){
 #                   ( to_add[[1]] * W[[1]] + to_add[[2]] * W[[2]] + ... ) *
@@ -9,7 +9,7 @@
 weight_and_score_manually <- function(MA,
                                       celltype_of_interest,
                                       vxt_master,
-                                      drivers,
+                                      known_genes,
                                       to_add = NULL,
                                       to_multiply = NULL,
                                       n_unique_manual_weights = NULL){
@@ -58,7 +58,7 @@ weight_and_score_manually <- function(MA,
 
       # test performance
       out <- scores %>%
-        get_PR(vxt_master, drivers, score) %>%
+        get_PR(vxt_master, known_genes, score) %>%
         purrr::map(~ dplyr::mutate(., model = i))
 
       # return

@@ -1,6 +1,6 @@
 #' Get performance metrics for the predictions
 #'
-#' Limit predictions to credible sets with at least one driver within the maximum prediction distance.
+#' Limit predictions to credible sets with at least one known gene within the maximum prediction distance.
 #' Calculate p-value, OR, precision, recall, sensitivity, specificity and F-score for the prediction.
 #'
 #' @param predictions Scores df in predict_target_genes function
@@ -17,11 +17,11 @@ get_performance <- function(predictions, prediction_col){
   # Calculate p-value, OR, precision, recall, sensitivity, specificity and F-score for the prediction
   data.frame(
     Positive = high_predictions %>% condition_n_genes({{prediction_col}}),
-    True = high_predictions %>% condition_n_genes(driver),
-    TP = high_predictions %>% condition_n_genes({{prediction_col}} & driver),
-    FP = high_predictions %>% condition_n_genes({{prediction_col}} & !driver),
-    TN = high_predictions %>% condition_n_genes(!{{prediction_col}} & !driver),
-    FN = high_predictions %>% condition_n_genes(!{{prediction_col}} & driver)) %>%
+    True = high_predictions %>% condition_n_genes(known_gene),
+    TP = high_predictions %>% condition_n_genes({{prediction_col}} & known_gene),
+    FP = high_predictions %>% condition_n_genes({{prediction_col}} & !known_gene),
+    TN = high_predictions %>% condition_n_genes(!{{prediction_col}} & !known_gene),
+    FN = high_predictions %>% condition_n_genes(!{{prediction_col}} & known_gene)) %>%
     dplyr::mutate(p = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$p.value,
                   OR = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$estimate,
                   Precision = TP / (TP + FN),

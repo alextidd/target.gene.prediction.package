@@ -13,6 +13,6 @@ get_performance(predictions, prediction_col)
 `performance` object (performance)
 }
 \description{
-Limit predictions to credible sets with at least one driver within the maximum prediction distance.
+Limit predictions to credible sets with at least one known gene within the maximum prediction distance.
 Calculate p-value, OR, precision, recall, sensitivity, specificity and F-score for the prediction.
 }

@@ -1,22 +1,22 @@
-get_PR <- function(scores, vxt_master, drivers, pcENSGs, max_n_drivers_per_CS){
+get_PR <- function(scores, vxt_master, known_genes, pcENSGs, max_n_known_genes_per_CS){
 
   performance <- list()
 
   # get all testable CS-gene pairs
   testable <- vxt_master %>%
-    # only test protein-coding target predictions against drivers (assumes all drivers are protein-coding)
+    # only test protein-coding target predictions against known_genes (assumes all known_genes are protein-coding)
     dplyr::filter(ensg %in% pcENSGs) %>%
-    # add drivers
-    dplyr::mutate(driver = symbol %in% drivers$symbol) %>%
-    # only test predictions in CSs with a driver within max prediction distance for performance evaluation
-    get_testable(max_n_drivers_per_CS) %>%
-    dplyr::distinct(cs, symbol, driver)
+    # add known_genes
+    dplyr::mutate(known_gene = symbol %in% known_genes$symbol) %>%
+    # only test predictions in CSs with a known gene within max prediction distance for performance evaluation
+    get_testable(max_n_known_genes_per_CS) %>%
+    dplyr::distinct(cs, symbol, known_gene)
 
   # score, max
   pred <- scores %>%
     dplyr::select(-dplyr::any_of(c("chrom", "start", "end"))) %>%
     dplyr::right_join(testable, by = c("cs", "symbol")) %>%
-    dplyr::group_by(cs, symbol, driver) %>%
+    dplyr::group_by(cs, symbol, known_gene) %>%
     # get maximum score per CS-x-gene-x-method
     dplyr::summarise(
       dplyr::across(where(is.numeric), ~ max(.x))
@@ -43,17 +43,17 @@ get_PR <- function(scores, vxt_master, drivers, pcENSGs, max_n_drivers_per_CS){
 
   # format for PR function input
   PR_in <- pred %>%
-    dplyr::select(prediction_type, prediction_method, prediction, driver) %>%
+    dplyr::select(prediction_type, prediction_method, prediction, known_gene) %>%
     dplyr::group_by(prediction_method, prediction_type) %>%
-    # refactor driver predictions for PR function
-    dplyr::mutate(driver = ifelse(driver, "positive", "negative") %>% factor(c("positive", "negative")))
+    # refactor known gene predictions for PR function
+    dplyr::mutate(known_gene = ifelse(known_gene, "positive", "negative") %>% factor(c("positive", "negative")))
 
   performance$PR <- PR_in %>%
     # calculate PR curve
-    yardstick::pr_curve(driver, prediction) %>%
+    yardstick::pr_curve(known_gene, prediction) %>%
     dplyr::left_join(PR_in %>%
                        # calculate AUPRC
-                       yardstick::pr_auc(driver, prediction) %>%
+                       yardstick::pr_auc(known_gene, prediction) %>%
                        dplyr::select(prediction_method,
                                      prediction_type,
                                      PR_AUC = .estimate),
@@ -67,13 +67,13 @@ get_PR <- function(scores, vxt_master, drivers, pcENSGs, max_n_drivers_per_CS){
     dplyr::mutate(prediction = as.logical(prediction)) %>%
     dplyr::group_by(prediction_method, prediction_type) %>%
     dplyr::group_modify(
-      ~ data.frame(True = .x %>% condition_n_gene_x_cs_pairs(driver),
+      ~ data.frame(True = .x %>% condition_n_gene_x_cs_pairs(known_gene),
                    Positive = .x %>% condition_n_gene_x_cs_pairs(prediction),
-                   TP = .x %>% condition_n_gene_x_cs_pairs(prediction & driver),
-                   FP = .x %>% condition_n_gene_x_cs_pairs(prediction & !driver),
-                   TN = .x %>% condition_n_gene_x_cs_pairs(!prediction & !driver),
-                   FN = .x %>% condition_n_gene_x_cs_pairs(!prediction & driver),
-                   n_drivers = dplyr::filter(.x, driver)$symbol %>% dplyr::n_distinct())
+                   TP = .x %>% condition_n_gene_x_cs_pairs(prediction & known_gene),
+                   FP = .x %>% condition_n_gene_x_cs_pairs(prediction & !known_gene),
+                   TN = .x %>% condition_n_gene_x_cs_pairs(!prediction & !known_gene),
+                   FN = .x %>% condition_n_gene_x_cs_pairs(!prediction & known_gene),
+                   n_known_genes = dplyr::filter(.x, known_gene)$symbol %>% dplyr::n_distinct())
     ) %>%
     dplyr::rowwise() %>%
     dplyr::mutate(p_value = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$p.value,
