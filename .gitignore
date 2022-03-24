@@ -1,8 +1,6 @@
 .Rproj.user
 .Rhistory
 .RData
-reference_data/
-example_data/
 out/
 log/
-test_run/
+run/
