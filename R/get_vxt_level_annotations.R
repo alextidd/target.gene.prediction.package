@@ -30,11 +30,11 @@ get_vxt_level_annotations <- function(variants,
 
   # intersect loop ends, by cell type, with enhancer variants and gene TSSs
   # (finds interaction loops with a variant at one end and a TSS at the other)
-  vxt_contact_scores <- enriched$contact %>% names %>%
+  vxt_HiChIP_scores <- enriched$HiChIP %>% names %>%
     sapply(function(assay){
-      sapply(enriched$contact[[assay]] %>% names, function(celltype){
-        # Intersect with the contact data
-        enriched$contact[[assay]][[celltype]] %>%
+      sapply(enriched$HiChIP[[assay]] %>% names, function(celltype){
+        # Intersect with the HiChIP data
+        enriched$HiChIP[[assay]][[celltype]] %>%
           intersect_BEDPE(
             # ! For mutually exclusive intersection with ranges, make variant intervals 1bp long, equal to the end position
             SNPend = variants %>% dplyr::mutate(start = end),
@@ -53,15 +53,15 @@ get_vxt_level_annotations <- function(variants,
                            names_from = celltype,
                            values_from = value)
     }, simplify = F, USE.NAMES = T)
-  names(vxt_contact_scores) <- paste0("contact_", names(vxt_contact_scores))
-  vxt <- c(vxt, vxt_contact_scores)
+  names(vxt_HiChIP_scores) <- paste0("HiChIP_", names(vxt_HiChIP_scores))
+  vxt <- c(vxt, vxt_HiChIP_scores)
 
-  # contact binary
-  vxt_contact_binary <- vxt_contact_scores %>%
+  # HiChIP binary
+  vxt_HiChIP_binary <- vxt_HiChIP_scores %>%
     purrr::map(~ dplyr::mutate(., dplyr::across(where(is.numeric), ~ dplyr::case_when(is.na(.) ~ 0,
                                                                                       TRUE ~ 1))))
-  names(vxt_contact_binary) <- paste0(names(vxt_contact_binary), "_", "binary")
-  vxt <- c(vxt, vxt_contact_binary)
+  names(vxt_HiChIP_binary) <- paste0(names(vxt_HiChIP_binary), "_", "binary")
+  vxt <- c(vxt, vxt_HiChIP_binary)
 
   # get variants at promoters
   vxt$promoter <- variants %>%

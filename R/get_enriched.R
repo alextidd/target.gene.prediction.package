@@ -1,7 +1,7 @@
 get_enriched <- function(variants,
                          H3K27ac,
                          specific_H3K27ac_closest_specific_genes,
-                         contact,
+                         HiChIP,
                          expression,
                          expressed,
                          TADs,
@@ -127,10 +127,10 @@ get_enriched <- function(variants,
   enriched$specific_H3K27ac_closest_specific_genes <- specific_H3K27ac_closest_specific_genes %>%
     dplyr::select(chrom:end, dplyr::any_of(enriched$celltypes$celltype[enriched$celltypes$object == "H3K27ac"])) %>%
     dplyr::filter(dplyr::if_all(where(is.character), ~ !is.na(.)))
-  ## contact
-  enriched$contact <- names(contact) %>%
+  ## HiChIP
+  enriched$HiChIP <- names(HiChIP) %>%
     sapply(function(x) {
-      contact[[x]][names(contact[[x]]) %in% enriched$celltypes$celltype[enriched$celltypes$object == "contact"]]
+      HiChIP[[x]][names(HiChIP[[x]]) %in% enriched$celltypes$celltype[enriched$celltypes$object == "HiChIP"]]
     }, simplify = F, USE.NAMES = T)
   ## expression
   enriched$expression <- expression %>%

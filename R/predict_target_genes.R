@@ -3,30 +3,30 @@
 #' The master, user-facing function of this package.
 #'
 #' @param trait Optional. The name of the trait of interest.
-#' @param celltype_of_interest Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.
+#' @param celltype_of_interest Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.
 #' @param tissue_of_interest Optional. The tissue(s) of interest for the trait. Only annotations in these tissues will be used to make predictions.  Argument(s) must match the names of tissues in the metadata.
-#' @param outDir The output directory in which to save the predictions. Default is "./out".
-#' @param variantsFile A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
+#' @param out_dir The output directory in which to save the predictions. Default is "./out".
+#' @param variants_file A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
 #' @param known_genes_file Optional. The file containing a list of trait known gene symbols. If do_performance is TRUE, must provide a known_genes_file.
-#' @param referenceDir The directory containing the external, accompanying reference data.
-#' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.
+#' @param reference_panels_dir The directory containing the external, accompanying reference panels data.
+#' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The HiChIP data is also already filtered to 2Mb.
 #' @param max_n_known_genes_per_CS In performance analysis, the maximum number of known genes within variant_to_gene_max_distance of the credible set.
 #' @param min_proportion_of_variants_in_top_H3K27ac A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5\% (0.05).
 #' @param do_all_celltypes If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
-#' @param do_all_celltypes_in_enriched_tissue If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.
+#' @param do_all_celltypes_in_enriched_tissue If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.
 #' @param do_scoring If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.
 #' @param do_performance If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting known genes as the targets of nearby variants. Default is FALSE.
 #' @param do_XGBoost If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.
 #' @param do_timestamp If TRUE, will save output into a subdirectory timestamped with the data/time of the run.
-#' @param contact If you are repeatedly running predict_target_genes, you can load the contact object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.
-#' @param H3K27ac If you are repeatedly running predict_target_genes, you can load the H3K27ac object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.
+#' @param HiChIP If you are repeatedly running predict_target_genes, you can load the HiChIP object from the reference_panels_dir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.
+#' @param H3K27ac If you are repeatedly running predict_target_genes, you can load the H3K27ac object from the reference_panels_dir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.
 #' @return A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).
 #' @export
 predict_target_genes <- function(trait = NULL,
-                                 outDir = "out",
-                                 variantsFile = "example_data/data/BC/variants.bed",
+                                 out_dir = "out",
+                                 variants_file = NULL,
                                  known_genes_file = NULL,
-                                 referenceDir = "reference_data/data/",
+                                 reference_panels_dir = NULL,
                                  celltype_of_interest = NULL,
                                  tissue_of_interest = NULL,
                                  variant_to_gene_max_distance = 2e6,
@@ -38,15 +38,15 @@ predict_target_genes <- function(trait = NULL,
                                  do_performance = T,
                                  do_XGBoost = F,
                                  do_timestamp = F,
-                                 contact = NULL,
+                                 HiChIP = NULL,
                                  H3K27ac = NULL) {
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; contact = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; outDir = "out/" ; variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/known_genes.txt" ; referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; rm(args) ; library(devtools) ; load_all()
-  # trait="PrCa_Giambartolomei2021_expanded"; variantsFile=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/variants.bed"); known_genes_file=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/known_genes.txt")
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; rm(args) ; library(devtools) ; load_all()
+  # trait="PrCa_Giambartolomei2021_expanded"; variants_file=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/variants.bed"); known_genes_file=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/known_genes.txt")
 
   # capture function arguments
-  args <- as.list(environment())[names(as.list(environment())) %ni% c("contact", "H3K27ac")]
+  args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
 
   # silence "no visible binding" NOTE for data variables in devtools::check()
   . <- NULL
@@ -54,10 +54,12 @@ predict_target_genes <- function(trait = NULL,
   # SETUP ======================================================================================================
 
   # metadata for all annotations
-  all_metadata <- read_tibble(paste0(referenceDir, "all_metadata.tsv"), header = T)
+  all_metadata <- read_tibble(paste0(reference_panels_dir, "all_metadata.tsv"), header = T)
 
   # check options
   {
+    if(is.null(reference_panels_dir)){stop("Must provide the path to the accompanying reference panels directory!")}
+    if(is.null(variants_file)){"Must provide the path to a file of trait variants!"}
     if (do_XGBoost) { do_scoring <- T }
     if (do_performance & is.null(known_genes_file)) { stop("do_performance = TRUE but no known_genes_file provided! Performance analysis requires a known_genes_file.") }
     if (!is.null(tissue_of_interest)) { if(tissue_of_interest %ni% all_metadata$tissue) {
@@ -86,7 +88,7 @@ predict_target_genes <- function(trait = NULL,
     Performance = "performance.tsv",
     PR = "PrecisionRecall.pdf",
     Args = "arguments_for_predict_target_genes.R"
-  ) ; out <- paste0(outDir,"/", trait, "/") %>%
+  ) ; out <- paste0(out_dir,"/", trait, "/") %>%
     {
       if(do_all_celltypes) paste0(., "all_celltypes/")
       else if(!is.null(tissue_of_interest)) paste0(., tissue_of_interest, "_tissue/")
@@ -104,21 +106,21 @@ predict_target_genes <- function(trait = NULL,
   # import the user-provided variants
   cat(" > Importing variants...\n")
   variants <- import_BED(
-    variantsFile,
+    variants_file,
     metadata_cols = c("variant", "cs"))
 
-  # import the contact data
-  if (is.null(contact)) {
-    cat(" > Importing contact data...\n")
-    contact <- readRDS(paste0(referenceDir, "contact.rds"))
+  # import the HiChIP data
+  if (is.null(HiChIP)) {
+    cat(" > Importing HiChIP data...\n")
+    HiChIP <- readRDS(paste0(reference_panels_dir, "HiChIP.rds"))
   }
 
   # import the H3K27ac-x-DHS binning data
   if (is.null(H3K27ac)) {
     cat(" > Importing H3K27ac-x-DHS binning data...\n")
-    H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac.rds"))
+    H3K27ac <- readRDS(paste0(reference_panels_dir, "H3K27ac.rds"))
   }
-  specific_H3K27ac_closest_specific_genes <- readRDS(paste0(referenceDir, "specific_H3K27ac_closest_specific_genes.rds"))
+  specific_H3K27ac_closest_specific_genes <- readRDS(paste0(reference_panels_dir, "specific_H3K27ac_closest_specific_genes.rds"))
 
   # generate DHSs master
   DHSs <- H3K27ac[[1]] %>%
@@ -126,19 +128,19 @@ predict_target_genes <- function(trait = NULL,
 
   # import the expression data
   cat(" > Importing RNA-seq expression data...\n")
-  expression <- readRDS(paste0(referenceDir, "expression.rds"))
-  expressed <- readRDS(paste0(referenceDir, "expressed.rds"))
+  expression <- readRDS(paste0(reference_panels_dir, "expression.rds"))
+  expressed <- readRDS(paste0(reference_panels_dir, "expressed.rds"))
 
   # import the TADs data
   cat(" > Importing TAD data...\n")
-  TADs <- readRDS(paste0(referenceDir, "TADs.rds"))
+  TADs <- readRDS(paste0(reference_panels_dir, "TADs.rds"))
 
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Performing cell type enrichment...\n")
   enriched <- get_enriched(variants,
                            H3K27ac,
                            specific_H3K27ac_closest_specific_genes,
-                           contact,
+                           HiChIP,
                            expression,
                            expressed,
                            TADs,
