@@ -1,11 +1,10 @@
 get_enriched <- function(variants,
                          H3K27ac,
-                         specific_H3K27ac_closest_specific_genes,
                          HiChIP,
                          expression,
                          expressed,
                          TADs,
-                         all_metadata,
+                         metadata,
                          out,
                          min_proportion_of_variants_in_top_H3K27ac,
                          celltype_of_interest,
@@ -23,21 +22,21 @@ get_enriched <- function(variants,
 
     cat("Treating user-provided tissue of interest '", tissue_of_interest, "' as the enriched tissue.\n")
     # user-provided tissue
-    enriched[["celltypes"]] <- all_metadata %>%
+    enriched[["celltypes"]] <- metadata %>%
       dplyr::filter(tissue == tissue_of_interest)
 
   } else if (!is.null(celltype_of_interest)) {
 
     cat("Treating user-provided celltype of interest '", celltype_of_interest, "' as the enriched celltype.\n")
     # user-provided celltype
-    enriched[["celltypes"]] <- all_metadata %>%
+    enriched[["celltypes"]] <- metadata %>%
       dplyr::filter(celltype == celltype_of_interest)
 
   } else if (do_all_celltypes) {
 
     cat("Applying annotations from all available cell types (`do_all_celltypes` = T).\n")
     # Include all celltypes
-    enriched[["celltypes"]] <- all_metadata
+    enriched[["celltypes"]] <- metadata
     cat("All tissues: ") ; enriched$celltypes$tissue %>% unique %>% paste(collapse = ", ") %>% cat('\n')
     cat("All celltypes: ") ; enriched$celltypes$celltype %>% unique %>% paste(collapse = ", ") %>% cat('\n')
 
@@ -45,7 +44,7 @@ get_enriched <- function(variants,
 
     cat("Performing enrichment analysis to find enriched tissue(s).\n")
     # No user-provided tissue, determine via enrichment analysis
-    # Fisher enrichment test will be of variants in top-decile cell-type-specificic H3K27ac marks in DHSs
+    # Fisher enrichment test will be of variants in top-decile cell-type-specific H3K27ac marks in DHSs
     specific_H3K27ac <- H3K27ac$specificity %>%
       tidyr::pivot_longer(cols = -c(chrom:DHS),
                           names_to = "celltype",
@@ -77,7 +76,7 @@ get_enriched <- function(variants,
                       # threshold of % of CCVs in top H3K27ac
                       proportion_of_variants_in_top_H3K27ac > min_proportion_of_variants_in_top_H3K27ac) %>%
       dplyr::arrange(p.value)
-    write_tibble(enrichment, out$TissueEnrichment)
+    write_tibble(enrichment, out$tissue_enrichment)
 
     # Error message if no cell type exceeds min_proportion_of_variants_in_top_H3K27ac
     if(nrow(thresholded_counts) == 0){
@@ -90,7 +89,7 @@ get_enriched <- function(variants,
         " variants in their most specific H3K27ac. Choose a lower `min_proportion_of_variants_in_top_H3K27ac` cut-off or specify a `tissue_of_interest` to skip this enrichment step.",
         "\nCelltype(s) with the highest proportion = ", paste(max_prop$celltype, collapse = ", "),
         "\nHighest proportion = ", unique(max_prop$proportion_of_variants_in_top_H3K27ac),
-        "\nEnrichment analysis saved to ", out$TissueEnrichment))
+        "\nEnrichment analysis saved to ", out$tissue_enrichment))
     }
 
     # Enriched celltypes/tissues
@@ -98,15 +97,15 @@ get_enriched <- function(variants,
       # Filter to celltypes that pass filters
       dplyr::filter(pass)  %>%
       # Get enriched celltype metadata
-      {dplyr::filter(all_metadata, celltype %in% .$celltype)} %>%
+      {dplyr::filter(metadata, celltype %in% .$celltype)} %>%
       # Get all samples in the enriched tissue, or only the enriched celltype
-      {dplyr::filter(all_metadata,
+      {dplyr::filter(metadata,
                       (do_all_celltypes_in_enriched_tissue & tissue %in% .$tissue ) |
                       (!do_all_celltypes_in_enriched_tissue & celltype %in% .$celltype))}
 
     # Error message if no cell types were enriched
     if(nrow(enriched$celltypes)==0){
-      stop("No enriched cell types found! Enrichment analysis saved to ", out$TissueEnrichment)}
+      stop("No enriched cell types found! Enrichment analysis saved to ", out$tissue_enrichment)}
 
     # Enriched celltype(s)/tissue(s)
     if(do_all_celltypes_in_enriched_tissue){
@@ -123,15 +122,8 @@ get_enriched <- function(variants,
   enriched$H3K27ac <- H3K27ac %>%
     purrr::map( ~ dplyr::select(., chrom:DHS,
                                 dplyr::any_of(enriched$celltypes$celltype[enriched$celltypes$object == "H3K27ac"])))
-  ## specific_H3K27ac_closest_specific_genes
-  enriched$specific_H3K27ac_closest_specific_genes <- specific_H3K27ac_closest_specific_genes %>%
-    dplyr::select(chrom:end, dplyr::any_of(enriched$celltypes$celltype[enriched$celltypes$object == "H3K27ac"])) %>%
-    dplyr::filter(dplyr::if_all(where(is.character), ~ !is.na(.)))
   ## HiChIP
-  enriched$HiChIP <- names(HiChIP) %>%
-    sapply(function(x) {
-      HiChIP[[x]][names(HiChIP[[x]]) %in% enriched$celltypes$celltype[enriched$celltypes$object == "HiChIP"]]
-    }, simplify = F, USE.NAMES = T)
+  enriched$HiChIP <- HiChIP[names(HiChIP)[names(HiChIP) %in% enriched$celltypes$celltype[enriched$celltypes$object == "HiChIP"]]]
   ## expression
   enriched$expression <- expression %>%
     purrr::map( ~ dplyr::select(., ensg,

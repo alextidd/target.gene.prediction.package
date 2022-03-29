@@ -14,17 +14,6 @@ get_vxg_level_annotations <- function(variants,
       value = 1/rank(distance, ties.method = "min")
     )
 
-  # specific variants x genes in specific H3K27ac
-  vxg$specific_H3K27ac_closest_specific_genes <- variants %>%
-    # intersect with specific_H3K27ac_closest_specific_genes
-    bed_intersect_left(enriched$specific_H3K27ac_closest_specific_genes, keepBcoords = F) %>%
-    tidyr::pivot_longer(-c(chrom:cs), names_to = "celltype", values_to = "ensg") %>%
-    dplyr::filter(!is.na(ensg)) %>%
-    dplyr::distinct(cs, variant, celltype, ensg) %>%
-    dplyr::mutate(value = 1) %>%
-    tidyr::pivot_wider(id_cols = -c(celltype, value),
-                       names_from = celltype, values_from = value)
-
   # REVEL #
   intersect_REVEL <- function(variants, revel_df, ...){
     variants %>%

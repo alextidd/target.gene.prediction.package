@@ -3,12 +3,12 @@
 #' The master, user-facing function of this package.
 #'
 #' @param trait Optional. The name of the trait of interest.
-#' @param celltype_of_interest Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.
-#' @param tissue_of_interest Optional. The tissue(s) of interest for the trait. Only annotations in these tissues will be used to make predictions.  Argument(s) must match the names of tissues in the metadata.
-#' @param out_dir The output directory in which to save the predictions. Default is "./out".
+#' @param out_dir The output directory in which to save the predictions. Default is "./out/{trait}/{celltypes}/".
 #' @param variants_file A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
 #' @param known_genes_file Optional. The file containing a list of trait known gene symbols. If do_performance is TRUE, must provide a known_genes_file.
 #' @param reference_panels_dir The directory containing the external, accompanying reference panels data.
+#' @param celltype_of_interest Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.
+#' @param tissue_of_interest Optional. The tissue(s) of interest for the trait. Only annotations in these tissues will be used to make predictions.  Argument(s) must match the names of tissues in the metadata.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The HiChIP data is also already filtered to 2Mb.
 #' @param max_n_known_genes_per_CS In performance analysis, the maximum number of known genes within variant_to_gene_max_distance of the credible set.
 #' @param min_proportion_of_variants_in_top_H3K27ac A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5\% (0.05).
@@ -23,7 +23,7 @@
 #' @return A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).
 #' @export
 predict_target_genes <- function(trait = NULL,
-                                 out_dir = "out",
+                                 out_dir = NULL,
                                  variants_file = NULL,
                                  known_genes_file = NULL,
                                  reference_panels_dir = NULL,
@@ -40,21 +40,18 @@ predict_target_genes <- function(trait = NULL,
                                  do_timestamp = F,
                                  HiChIP = NULL,
                                  H3K27ac = NULL) {
-
-  # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" ; variant_to_gene_max_distance = 2e6 ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; rm(args) ; library(devtools) ; load_all()
-  # trait="PrCa_Giambartolomei2021_expanded"; variants_file=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/variants.bed"); known_genes_file=paste0("/working/lab_jonathb/alexandT/tgp/example_data/data/",trait,"/known_genes.txt")
-
-  # capture function arguments
+  # capture function arguments (do not run when testing internally)
   args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
 
-  # silence "no visible binding" NOTE for data variables in devtools::check()
-  . <- NULL
+  # for testing internally:
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/variants/Michailidou2017/variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
+  # internally restore run environment:
+  # # args <- dget("out/BC_Michailidou2017_FM_variants/enriched_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
   # SETUP ======================================================================================================
 
   # metadata for all annotations
-  all_metadata <- read_tibble(paste0(reference_panels_dir, "all_metadata.tsv"), header = T)
+  metadata <- read_tibble(paste0(reference_panels_dir, "metadata.tsv"), header = T)
 
   # check options
   {
@@ -62,46 +59,49 @@ predict_target_genes <- function(trait = NULL,
     if(is.null(variants_file)){"Must provide the path to a file of trait variants!"}
     if (do_XGBoost) { do_scoring <- T }
     if (do_performance & is.null(known_genes_file)) { stop("do_performance = TRUE but no known_genes_file provided! Performance analysis requires a known_genes_file.") }
-    if (!is.null(tissue_of_interest)) { if(tissue_of_interest %ni% all_metadata$tissue) {
+    if (!is.null(tissue_of_interest)) { if(tissue_of_interest %ni% metadata$tissue) {
       stop("Provided tissue_of_interest '", tissue_of_interest, "' is not represented in the available data. Must be one of...\n",
-           paste(unique(all_metadata$tissue), collapse = ", ")) } }
+           paste(unique(metadata$tissue), collapse = ", ")) } }
     if (!is.null(celltype_of_interest)) {
-      coi_annotations <- all_metadata %>% dplyr::filter(celltype == celltype_of_interest) %>% dplyr::pull(object) %>% unique
-      if (celltype_of_interest %ni% all_metadata$celltype) {
+      coi_annotations <- metadata %>% dplyr::filter(celltype == celltype_of_interest) %>% dplyr::pull(object) %>% unique
+      if (celltype_of_interest %ni% metadata$celltype) {
         stop("Provided celltype_of_interest '", celltype_of_interest, "' is not represented in the available data. Must be one of...\n",
-             paste(unique(all_metadata$celltype), collapse = ", ")) }
-      if (length(setdiff(all_metadata$object, coi_annotations)) > 0){
+             paste(unique(metadata$celltype), collapse = ", ")) }
+      if (length(setdiff(metadata$object, coi_annotations)) > 0){
         stop("Provided celltype_of_interest '", celltype_of_interest, "' does not have a full panel of annotations available.\nMissing annotation(s) = ",
-             paste(setdiff(all_metadata$object, coi_annotations), collapse = ", "),
-             "\nEither re-run at tissue-level (tissue_of_interest = ", unique(all_metadata[all_metadata$celltype == celltype_of_interest,]$tissue),
+             paste(setdiff(metadata$object, coi_annotations), collapse = ", "),
+             "\nEither re-run at tissue-level (tissue_of_interest = ", unique(metadata[metadata$celltype == celltype_of_interest,]$tissue),
              ") or generate celltype-level annotations for '", celltype_of_interest, "' in the reference data.") } }
   }
 
   # define the output
   out <- list(
-    Base = "",
-    TissueEnrichment = "tissue_fisher_enrichments.tsv",
-    Annotations = "target_gene_annotations.tsv",
-    Predictions = "target_gene_predictions_full.tsv",
-    MaxPredictions = "target_gene_predictions_max.tsv",
+    base = "",
+    tissue_enrichment = "tissue_fisher_enrichments.tsv",
+    annotations = "target_gene_annotations.tsv",
+    predictions = "target_gene_predictions_full.tsv",
+    max_predictions = "target_gene_predictions_max.tsv",
     MA = "MA.rds",
-    Performance = "performance.tsv",
+    performance = "performance.tsv",
     PR = "PrecisionRecall.pdf",
-    Args = "arguments_for_predict_target_genes.R"
-  ) ; out <- paste0(out_dir,"/", trait, "/") %>%
-    {
-      if(do_all_celltypes) paste0(., "all_celltypes/")
-      else if(!is.null(tissue_of_interest)) paste0(., tissue_of_interest, "_tissue/")
-      else if(!is.null(celltype_of_interest)) paste0(., celltype_of_interest, "_celltype/")
-      else if(do_all_celltypes_in_enriched_tissue) paste0(., "enriched_tissues/")
-      else paste0(., "enriched_celltypes/")
-    } %>%
-    { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
-    { purrr::map(out, function(x) paste0(., x)) }
-  dir.create(out$Base, showWarnings = F, recursive = T)
+    args = "arguments_for_predict_target_genes.R"
+  )
+  if(is.null(out_dir)){
+    out <- paste0("out/", trait, "/") %>%
+      {
+        if(do_all_celltypes) paste0(., "all_celltypes/")
+        else if(!is.null(tissue_of_interest)) paste0(., tissue_of_interest, "_tissue/")
+        else if(!is.null(celltype_of_interest)) paste0(., celltype_of_interest, "_celltype/")
+        else if(do_all_celltypes_in_enriched_tissue) paste0(., "enriched_tissues/")
+        else paste0(., "enriched_celltypes/")
+      } %>%
+      { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
+      { purrr::map(out, function(x) paste0(., x)) }
+  } else { out <- out %>% purrr::map(function(x) paste0(out_dir, "/", x)) }
+  dir.create(out$base, showWarnings = F, recursive = T)
 
   # write run arguments to output
-  dput(args, file = out$Args)
+  dput(args, file = out$args)
 
   # import the user-provided variants
   cat(" > Importing variants...\n")
@@ -112,15 +112,14 @@ predict_target_genes <- function(trait = NULL,
   # import the HiChIP data
   if (is.null(HiChIP)) {
     cat(" > Importing HiChIP data...\n")
-    HiChIP <- readRDS(paste0(reference_panels_dir, "HiChIP.rds"))
+    HiChIP <- readRDS(paste0(reference_panels_dir, "HiChIP/HiChIP.rds"))
   }
 
   # import the H3K27ac-x-DHS binning data
   if (is.null(H3K27ac)) {
     cat(" > Importing H3K27ac-x-DHS binning data...\n")
-    H3K27ac <- readRDS(paste0(reference_panels_dir, "H3K27ac.rds"))
+    H3K27ac <- readRDS(paste0(reference_panels_dir, "H3K27ac/H3K27ac.rds"))
   }
-  specific_H3K27ac_closest_specific_genes <- readRDS(paste0(reference_panels_dir, "specific_H3K27ac_closest_specific_genes.rds"))
 
   # generate DHSs master
   DHSs <- H3K27ac[[1]] %>%
@@ -128,23 +127,22 @@ predict_target_genes <- function(trait = NULL,
 
   # import the expression data
   cat(" > Importing RNA-seq expression data...\n")
-  expression <- readRDS(paste0(reference_panels_dir, "expression.rds"))
-  expressed <- readRDS(paste0(reference_panels_dir, "expressed.rds"))
+  expression <- readRDS(paste0(reference_panels_dir, "expression/expression.rds"))
+  expressed <- readRDS(paste0(reference_panels_dir, "expression/expressed.rds"))
 
   # import the TADs data
   cat(" > Importing TAD data...\n")
-  TADs <- readRDS(paste0(reference_panels_dir, "TADs.rds"))
+  TADs <- readRDS(paste0(reference_panels_dir, "TADs/TADs.rds"))
 
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Performing cell type enrichment...\n")
   enriched <- get_enriched(variants,
                            H3K27ac,
-                           specific_H3K27ac_closest_specific_genes,
                            HiChIP,
                            expression,
                            expressed,
                            TADs,
-                           all_metadata,
+                           metadata,
                            out,
                            min_proportion_of_variants_in_top_H3K27ac,
                            # options to manually change annotation groupings (passed by user):
@@ -208,7 +206,7 @@ predict_target_genes <- function(trait = NULL,
 
   # 3e) VARIANT-x-TRANSCRIPT-LEVEL INPUTS ====
   cat(" > VxT\tAnnotating variant x transcript pairs...\n")
-  vxt <- get_VXT_level_annotations(variants,
+  vxt <- get_vxt_level_annotations(variants,
                                    vxt_master,
                                    variant_to_gene_max_distance,
                                    enriched)
@@ -241,7 +239,7 @@ predict_target_genes <- function(trait = NULL,
     as.data.frame %>%
     dplyr::distinct() %>%
     dplyr::rename(celltype = ".") %>%
-    dplyr::left_join(all_metadata %>% dplyr::distinct(celltype, tissue), by = "celltype") %>%
+    dplyr::left_join(metadata %>% dplyr::distinct(celltype, tissue), by = "celltype") %>%
     tibble::column_to_rownames("celltype")
 
   # celltype-specific annotations have as many columns as there are annotated celltypes
@@ -335,9 +333,9 @@ predict_target_genes <- function(trait = NULL,
     dplyr::select(cs, variant, symbol)
 
   # write tables
-  write_tibble(scores, filename = out$Annotations)
-  write_tibble(predictions, filename = out$Predictions)
-  write_tibble(max, filename = out$MaxPredictions)
+  write_tibble(scores, filename = out$annotations)
+  write_tibble(predictions, filename = out$predictions)
+  write_tibble(max, filename = out$max_predictions)
   }
 
   # 6) PERFORMANCE ======================================================================================================
@@ -361,7 +359,7 @@ predict_target_genes <- function(trait = NULL,
     print(
       performance %>%
         plot_PR +
-        ggplot2::ggtitle(out$Base %>% gsub("/", " ", .))
+        ggplot2::ggtitle(out$base %>% gsub("/", " ", .))
     )
     # PR max
     print(
@@ -370,14 +368,15 @@ predict_target_genes <- function(trait = NULL,
         plot_PR +
         ggrepel::geom_text_repel(data = . %>%
                                    dplyr::ungroup() %>%
-                                   dplyr::top_n(5, PR_AUC)) +
-        ggplot2::ggtitle(out$Base %>% gsub("/", " ", .) %>% paste("max"))
+                                   dplyr::top_n(5, PR_AUC),
+                                 min.segment.length = 0) +
+        ggplot2::ggtitle(out$base %>% gsub("/", " ", .) %>% paste("max"))
     )
     # AUPRC
     print(
       performance %>%
         plot_AUPRC +
-        ggplot2::ggtitle(out$Base %>% gsub("/", " ", .))
+        ggplot2::ggtitle(out$base %>% gsub("/", " ", .))
     )
     print(
       performance$summary %>%
@@ -398,7 +397,7 @@ predict_target_genes <- function(trait = NULL,
   dev.off()
 
   # write table
-  write_tibble(performance$summary, filename = out$Performance)
+  write_tibble(performance$summary, filename = out$performance)
   }
 
   # 7) XGBoost MODEL TRAINING ======================================================================================================
@@ -426,7 +425,7 @@ predict_target_genes <- function(trait = NULL,
   xgb1_feature_importance_mat <- xgboost::xgb.importance(feature_names = colnames(dtrain), model = xgb1)
   xgb1_feature_importance_plot <- xgboost::xgb.ggplot.importance(importance_matrix = xgb1_feature_importance_mat)
   # save plot
-  pdf(paste0(out$Base, "xgb_model_feature_importance.pdf"))
+  pdf(paste0(out$base, "xgb_model_feature_importance.pdf"))
   print(xgb1_feature_importance_plot)
   dev.off()
   }
@@ -436,7 +435,7 @@ predict_target_genes <- function(trait = NULL,
   #      predictions,
   #      performance,
   #      xgb1,
-  #      file = paste0(out$Base, "data.Rdata"))
+  #      file = paste0(out$base, "data.Rdata"))
 
   return(MA)
 }
