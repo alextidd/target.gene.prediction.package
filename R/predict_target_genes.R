@@ -44,7 +44,7 @@ predict_target_genes <- function(trait = NULL,
   args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/variants/Michailidou2017/variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/variants/Michailidou2017/FM_variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # internally restore run environment:
   # # args <- dget("out/BC_Michailidou2017_FM_variants/enriched_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
@@ -120,15 +120,15 @@ predict_target_genes <- function(trait = NULL,
     cat(" > Importing H3K27ac-x-DHS binning data...\n")
     H3K27ac <- readRDS(paste0(reference_panels_dir, "H3K27ac/H3K27ac.rds"))
   }
-
-  # generate DHSs master
-  DHSs <- H3K27ac[[1]] %>%
-    dplyr::distinct(chrom, start, end, DHS)
+  H3K27ac_specificity_ranked <- readRDS(paste0(reference_panels_dir, "H3K27ac/H3K27ac_specificity_rank.rds"))
 
   # import the expression data
   cat(" > Importing RNA-seq expression data...\n")
   expression <- readRDS(paste0(reference_panels_dir, "expression/expression.rds"))
   expressed <- readRDS(paste0(reference_panels_dir, "expression/expressed.rds"))
+
+  # import DHSs master
+  DHSs <- readRDS(paste0(reference_panels_dir, "DHSs/DHSs.rds"))
 
   # import the TADs data
   cat(" > Importing TAD data...\n")
@@ -137,10 +137,11 @@ predict_target_genes <- function(trait = NULL,
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Performing cell type enrichment...\n")
   enriched <- get_enriched(variants,
+                           H3K27ac_specificity_ranked,
                            H3K27ac,
-                           HiChIP,
                            expression,
                            expressed,
+                           HiChIP,
                            TADs,
                            metadata,
                            out,

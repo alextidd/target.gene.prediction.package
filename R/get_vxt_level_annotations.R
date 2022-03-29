@@ -75,6 +75,7 @@ get_vxt_level_annotations <- function(variants,
     # Get DHS bins at those promoter variants
     intersect_H3K27ac(list(),
                    query = .,
+                   DHSs,
                    H3K27ac = enriched$H3K27ac,
                    cs, variant, enst) %>%
     purrr::reduce(dplyr::bind_rows) %>%

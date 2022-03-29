@@ -10,20 +10,23 @@
 #' @export
 intersect_H3K27ac <- function(l,
                               query,
+                              DHSs,
                               H3K27ac,
                               ...){
 
   # intersect with query bed
+  intersected_DHSs <- bed_intersect_left(
+    bedA = query,
+    bedB = DHSs,
+    keepBcoords = F
+  )
   l <- H3K27ac %>%
     lapply(function(x){
-      score_cols <- setdiff(colnames(x), c("chrom", "start", "end", "DHS"))
-      bed_intersect_left(
-          bedA = query,
-          bedB = x %>% dplyr::select(-DHS),
-          keepBcoords = F) %>%
-        dplyr::select(-c(chrom:end))%>%
+      score_cols <- setdiff(colnames(x), "DHS")
+      intersected_DHSs %>%
+        dplyr::left_join(x) %>%
         # group by query column(s) (unit(s) of the annotation)
-        dplyr::group_by(...) %>%
+        dplyr::group_by(dplyr::all_of(...)) %>%
         # for overlapping - get max bin to avoid duplicates
         dplyr::summarise(dplyr::across(score_cols, max)) %>%
         dplyr::ungroup()

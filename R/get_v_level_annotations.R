@@ -9,6 +9,7 @@ get_v_level_annotations <- function(variants,
   # intersect with DHS binnings
   v <- v %>%
     intersect_H3K27ac(query = variants,
+                      DHSs,
                       H3K27ac = enriched$H3K27ac,
                       variant)
 
