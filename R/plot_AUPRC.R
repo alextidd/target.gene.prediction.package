@@ -13,5 +13,6 @@ plot_AUPRC <- function(performance){
                   y = "PR AUC") +
     ggplot2::theme_bw() +
     ggsci::scale_fill_igv() +
-    ggplot2::coord_flip()
+    ggplot2::coord_flip() +
+    ggplot2::theme(axis.text = ggplot2::element_text(size = 12))
 }

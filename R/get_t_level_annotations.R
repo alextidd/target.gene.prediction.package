@@ -1,4 +1,5 @@
 get_t_level_annotations <- function(TSSs,
+                                    DHSs,
                                     enriched){
 
   t <- list()

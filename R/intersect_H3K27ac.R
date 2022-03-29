@@ -24,9 +24,9 @@ intersect_H3K27ac <- function(l,
     lapply(function(x){
       score_cols <- setdiff(colnames(x), "DHS")
       intersected_DHSs %>%
-        dplyr::left_join(x) %>%
+        dplyr::left_join(x, by = "DHS") %>%
         # group by query column(s) (unit(s) of the annotation)
-        dplyr::group_by(dplyr::all_of(...)) %>%
+        dplyr::group_by(...) %>%
         # for overlapping - get max bin to avoid duplicates
         dplyr::summarise(dplyr::across(score_cols, max)) %>%
         dplyr::ungroup()

@@ -1,4 +1,5 @@
 get_enriched <- function(variants,
+                         DHSs,
                          H3K27ac_specificity_ranked,
                          H3K27ac,
                          expression,
@@ -66,7 +67,7 @@ get_enriched <- function(variants,
         p.value = pnorm(mean_rank, mean, variance, lower.tail = F),
         FDR = p.value %>% p.adjust,
         pass = p.value < p.value_cutoff) %>%
-      arrange(p.value)
+      dplyr::arrange(p.value)
     write_tibble(enrichment, out$tissue_enrichment)
 
     # Enriched celltypes/tissues

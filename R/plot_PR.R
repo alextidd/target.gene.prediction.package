@@ -19,5 +19,6 @@ plot_PR <- function(performance){
     ggplot2::ylim(0,1) +
     ggplot2::coord_equal() +
     ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")")) +
-    ggplot2::theme_bw()
+    ggplot2::theme_bw() +
+    ggplot2::theme(axis.text = ggplot2::element_text(size = 12))
 }

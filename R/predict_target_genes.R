@@ -46,7 +46,7 @@ predict_target_genes <- function(trait = NULL,
   # for testing internally:
   # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/variants/Michailidou2017/FM_variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # internally restore run environment:
-  # # args <- dget("out/BC_Michailidou2017_FM_variants/enriched_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
+  # # args <- dget("out/BC_Michailidou2017_FM_variants/enriched_tissues/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
   # SETUP ======================================================================================================
 
@@ -137,6 +137,7 @@ predict_target_genes <- function(trait = NULL,
   # 1) CELL TYPE ENRICHMENT ======================================================================================================
   cat("1) Performing cell type enrichment...\n")
   enriched <- get_enriched(variants,
+                           DHSs,
                            H3K27ac_specificity_ranked,
                            H3K27ac,
                            expression,
@@ -194,6 +195,7 @@ predict_target_genes <- function(trait = NULL,
   # 3b) TRANSCRIPT-LEVEL INPUTS ====
   cat(" > T\tAnnotating transcripts...\n")
   t <- get_t_level_annotations(TSSs,
+                               DHSs,
                                enriched)
 
   # 3c) GENE-LEVEL INPUTS ===
@@ -208,6 +210,7 @@ predict_target_genes <- function(trait = NULL,
   # 3e) VARIANT-x-TRANSCRIPT-LEVEL INPUTS ====
   cat(" > VxT\tAnnotating variant x transcript pairs...\n")
   vxt <- get_vxt_level_annotations(variants,
+                                   DHSs,
                                    vxt_master,
                                    variant_to_gene_max_distance,
                                    enriched)
@@ -233,20 +236,20 @@ predict_target_genes <- function(trait = NULL,
   master <- c(v, t, g, c, vxt, vxg, cxt) %>%
     purrr::map(~ matricise_by_pair(., vxt_master))
 
-  # MultiAssayExperiment colData
-  colData <- master %>%
-    lapply(colnames) %>%
-    unlist %>%
-    as.data.frame %>%
-    dplyr::distinct() %>%
-    dplyr::rename(celltype = ".") %>%
-    dplyr::left_join(metadata %>% dplyr::distinct(celltype, tissue), by = "celltype") %>%
-    tibble::column_to_rownames("celltype")
-
-  # celltype-specific annotations have as many columns as there are annotated celltypes
-  # non-celltype-specific annotations have one `value` column, which applies across all celltypes
-  MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
-  saveRDS(MA, file = out$MA)
+  # # MultiAssayExperiment colData
+  # colData <- master %>%
+  #   lapply(colnames) %>%
+  #   unlist %>%
+  #   as.data.frame %>%
+  #   dplyr::distinct() %>%
+  #   dplyr::rename(celltype = ".") %>%
+  #   dplyr::left_join(metadata %>% dplyr::distinct(celltype, tissue), by = "celltype") %>%
+  #   tibble::column_to_rownames("celltype")
+  #
+  # # celltype-specific annotations have as many columns as there are annotated celltypes
+  # # non-celltype-specific annotations have one `value` column, which applies across all celltypes
+  # MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
+  # saveRDS(MA, file = out$MA)
 
   # 5) SCORING ======================================================================================================
   if(do_scoring){
@@ -256,7 +259,6 @@ predict_target_genes <- function(trait = NULL,
   weights <- list(
     vxt_TADs = 1,
     vxt_inv_distance = 1,
-    vxg_specific_H3K27ac_closest_specific_genes = 0, # 1
     vxt_intron = 1,
     vxg_missense = 1,
     vxg_nonsense = 1,
@@ -432,12 +434,6 @@ predict_target_genes <- function(trait = NULL,
   }
 
   # 8) SAVE ===
-  # save(master,
-  #      predictions,
-  #      performance,
-  #      xgb1,
-  #      file = paste0(out$base, "data.Rdata"))
-
-  return(MA)
+  return(scores)
 }
 
