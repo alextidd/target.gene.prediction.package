@@ -16,7 +16,7 @@ get_enriched <- function(variants,
                          ratio_cutoff = 1,
                          p_value_cutoff = 0.05){
 
-  # for testing: # estimate_cutoff = 2 ; p_value_cutoff = 0.05
+  # for testing: # ratio_cutoff = 1 ; p_value_cutoff = 0.05
 
   enriched <- list()
 
@@ -50,16 +50,17 @@ get_enriched <- function(variants,
     # Intersect SNPs with DHS sites and compute the mean H3K27ac specificity rank of the intersected DHS.
     # Assuming SNPs overlap sites randomly, compute significance of mean rank of sites where SNPs overlap based on deivation from uniform distribution.
 
-    # intersect variants
-    enrichment <- bed_intersect_left(variants, DHSs, keepBcoords = F) %>%
-      {dplyr::filter(H3K27ac_specificity_ranked, DHS %in% .$DHS)} %>%
+    # intersect DHSs
+    intersected_DHSs <- bed_intersect_left(variants, DHSs, keepBcoords = F) %>%
+      {dplyr::filter(H3K27ac_specificity_ranked, DHS %in% .$DHS)}
+    enrichment <- intersected_DHSs %>%
       # mean specificity rank per celltype
       dplyr::summarise(across(where(is.numeric), mean)) %>%
       tidyr::pivot_longer(everything(), names_to = "celltype", values_to = "mean_rank") %>%
       dplyr::mutate(
         # uniform distribution parameters
         N = nrow(DHSs),
-        n = nrow(variants),
+        n = nrow(intersected_DHSs),
         mean = (N + 1)/2,
         variance = sqrt((N^2 - 1)/(12 * n)),
         # deviation from uniform distribution = enrichment
