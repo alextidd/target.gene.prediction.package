@@ -9,10 +9,11 @@ get_vxt_level_annotations <- function(variants,
   # TSS distance scoring method (these pairings are the only ones to consider)
   distance <- vxt_master %>%
     dplyr::group_by(variant) %>%
-    # Calculate inverse of the absolute bp distance for each variant-transcript pair
-    dplyr::mutate(inv_distance = 1/distance,
+    # Calculate inverse of the absolute bp distance for each variant-transcript pair (avoid infinite values)
+    dplyr::mutate(inv_distance = dplyr::case_when(distance == 0 ~ 1,
+                                                  TRUE ~ 1 / distance),
                   # ranking transcript TSSs (if two transcript TSSs are equidistant to the variant, they will receive the same, lower rank)
-                  inv_distance_rank = 1/rank(distance, ties.method = "min"))
+                  inv_distance_rank = 1 / rank(distance, ties.method = "min"))
 
   # variant-TSS inverse distance score method
   vxt$inv_distance <- distance %>%

@@ -13,10 +13,10 @@ get_enriched <- function(variants,
                          tissue_of_interest,
                          do_all_celltypes,
                          do_all_celltypes_in_enriched_tissue,
-                         estimate_cutoff = 2,
-                         p.value_cutoff = 0.05){
+                         ratio_cutoff = 1,
+                         p_value_cutoff = 0.05){
 
-  # for testing: # estimate_cutoff = 2 ; p.value_cutoff = 0.05
+  # for testing: # estimate_cutoff = 2 ; p_value_cutoff = 0.05
 
   enriched <- list()
 
@@ -63,11 +63,11 @@ get_enriched <- function(variants,
         mean = (N + 1)/2,
         variance = sqrt((N^2 - 1)/(12 * n)),
         # deviation from uniform distribution = enrichment
-        FC = mean_rank / mean,
-        p.value = pnorm(mean_rank, mean, variance, lower.tail = F),
-        FDR = p.value %>% p.adjust,
-        pass = p.value < p.value_cutoff) %>%
-      dplyr::arrange(p.value)
+        ratio = mean_rank / mean,
+        p_value = pnorm(mean_rank, mean, variance, lower.tail = F),
+        p_value_adjust = p_value %>% p.adjust,
+        pass = ((p_value_adjust < p_value_cutoff) & (ratio > ratio_cutoff))) %>%
+      dplyr::arrange(p_value)
     write_tibble(enrichment, out$tissue_enrichment)
 
     # Enriched celltypes/tissues
@@ -91,6 +91,17 @@ get_enriched <- function(variants,
       cat("Celltype(s) in enriched tissue(s): ") ; enriched$celltypes$celltype %>% unique %>% paste(collapse = ", ") %>% cat('\n')
     } else {
       cat("Enriched celltype(s): ") ; enriched$celltypes$celltype %>% unique %>% paste(collapse = ", ") %>% cat('\n')
+
+      full_panel <- metadata$object
+      enriched_panel <- dplyr::filter(metadata, celltype %in% enriched$celltypes$celltype)$object
+      panel_gaps <- setdiff(full_panel, enriched_panel)
+      if(length(panel_gaps) > 0){
+      stop("\nOption `do_all_celltypes_in_enriched_tissue = F` was given, but the enriched celltype(s) do not constitute a full reference panel.",
+           "\nEnriched celltype(s): ", enriched$celltypes$celltype  %>% unique %>% paste(collapse = ", "),
+           "\nMissing annotations: ", paste(panel_gaps, collapse = ", "),
+           "\nMake sure the enriched celltype has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.",
+           "\nEither run again with `do_all_celltypes_in_enriched_tissue = T`` or lower the enrichment threshold `p_value_cutoff = ",p_value_cutoff,"`")
+      }
     }
 
   }
@@ -133,15 +144,15 @@ get_enriched <- function(variants,
 #   bedB = variants,
 #   genome = ChrSizes) %>%
 #   dplyr::left_join(counts %>% dplyr::select(celltype, proportion_of_variants_in_top_H3K27ac), by = "celltype") %>%
-#   dplyr::mutate(p.value.adjusted = p.value %>% p.adjust,
+#   dplyr::mutate(p_value.adjusted = p_value %>% p.adjust,
 #                 pass =
 #                   # filter for effect
 #                   estimate > estimate_cutoff &
 #                   # filter for significance
-#                   p.value < p.value_cutoff &
+#                   p_value < p_value_cutoff &
 #                   # threshold of % of CCVs in top H3K27ac
 #                   proportion_of_variants_in_top_H3K27ac > min_proportion_of_variants_in_top_H3K27ac) %>%
-#   dplyr::arrange(p.value)
+#   dplyr::arrange(p_value)
 # write_tibble(enrichment, out$tissue_enrichment)
 #
 # # Error message if no cell type exceeds min_proportion_of_variants_in_top_H3K27ac

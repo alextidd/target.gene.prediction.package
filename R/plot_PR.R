@@ -1,4 +1,4 @@
-plot_PR <- function(performance){
+plot_PR <- function(performance, ...){
   performance$PR %>%
     dplyr::filter(.threshold %ni% c(0, Inf, -Inf),
                   recall != 1,
@@ -8,7 +8,7 @@ plot_PR <- function(performance){
                   point = !grepl("score", prediction_type)) %>%
     ggplot2::ggplot(ggplot2::aes(x = recall,
                                  y = precision,
-                                 colour = prediction_method,
+                                 ...,
                                  label = prediction_method)) +
     ggplot2::geom_line(data = . %>% dplyr::filter(line),
                        ggplot2::aes(linetype = prediction_type)) +
@@ -18,7 +18,5 @@ plot_PR <- function(performance){
     ggplot2::xlim(0,1) +
     ggplot2::ylim(0,1) +
     ggplot2::coord_equal() +
-    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")")) +
-    ggplot2::theme_bw() +
-    ggplot2::theme(axis.text = ggplot2::element_text(size = 12))
+    ggplot2::labs(x = paste0("recall (n = ", unique(performance$summary$True), ")"))
 }
