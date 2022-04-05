@@ -3,7 +3,7 @@ get_g_level_annotations <- function(vxt_master,
 
   g <- list()
 
-  # gene signal/spec bins
+  # gene TPM signal/spec bins
   g <- enriched$expression %>%
     purrr::map( ~ .x %>% dplyr::inner_join(vxt_master %>% dplyr::distinct(ensg), by = "ensg"))
   names(g) <- paste0("expression_", names(g))

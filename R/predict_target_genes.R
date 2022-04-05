@@ -46,7 +46,7 @@ predict_target_genes <- function(trait = NULL,
   # for testing internally:
   # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/variants/Michailidou2017/FM_variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # internally restore run environment:
-  # # args <- dget("out/BC_Michailidou2017_FM/enriched_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
+  # # args <- dget("out/BC_Michailidou2017_FM/enriched_tissues/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
   # SETUP ======================================================================================================
 
@@ -105,8 +105,12 @@ predict_target_genes <- function(trait = NULL,
   dput(args, file = out$args)
 
   # ggplot theme settings
-  ggplot2::theme_set(ggplot2::theme_classic() +
-                       ggplot2::theme(axis.text = ggplot2::element_text(size = 15)))
+  theme_set(
+    theme_classic() +
+      theme(
+        title = element_text(size = 20),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 15)))
 
   # import the user-provided variants
   cat(" > Importing variants...\n")
@@ -163,29 +167,10 @@ predict_target_genes <- function(trait = NULL,
   cat("2) Finding all genes near variants...\n")
 
   # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs < variant_to_gene_max_distance apart)
-  vxt_master <- variants %>%
-    # all genes within 2Mb
-    valr::bed_slop(both = variant_to_gene_max_distance,
-                   genome = ChrSizes,
-                   trim = T) %>%
-    valr::bed_intersect(., TSSs,
-                        suffix = c("", ".TSS")) %>%
-    # restore coords
-    dplyr::select(-c(start, end)) %>%
-    dplyr::left_join(variants, by = c("chrom", "variant", "cs")) %>%
-    dplyr::transmute(chrom,
-                    start.variant = start,
-                    end.variant = end,
-                    start.TSS, end.TSS,
-                    distance = abs(end - end.TSS),
-                    variant,
-                    pair = paste0(cs, ":", variant, "|", enst.TSS),
-                    cs,
-                    enst = enst.TSS,
-                    symbol = symbol.TSS,
-                    ensg = ensg.TSS) %>%
-    dplyr::distinct()
-
+  vxt_master <- get_vxt_master(variants,
+                               TSSs,
+                               variant_to_gene_max_distance) 
+  
   # 3) ANNOTATING ======================================================================================================
   cat("3) Annotating enhancer-gene pairs...\n")
 
@@ -363,13 +348,6 @@ predict_target_genes <- function(trait = NULL,
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
   # plot extras
-  g_title <- paste0("\nTrait = ", trait,
-                     "\nmax n known_genes per CS = ", max_n_known_genes_per_CS,
-                     "; max distance = ", variant_to_gene_max_distance,
-                     "\nEnrichment = ", enriched_dir)
-  g_subtitle <- paste0("Tissue(s) = ", enriched$celltypes$tissue %>% unique %>% paste(collapse = ", "), "\n",
-                       paste(strwrap(paste0("Celltype(s) = ", enriched$celltypes$celltype %>% unique %>% paste(collapse = ", ")),
-                              width = 70), collapse = "\n"))
   weight_facets <- dplyr::left_join(
     performance$summary %>% dplyr::select(prediction_method),
       dplyr::tibble(prediction_method = names(weights),
@@ -379,42 +357,54 @@ predict_target_genes <- function(trait = NULL,
           grepl("^score", prediction_method) ~ "score",
           is.na(weight) ~ "0.33",
           TRUE ~ as.character(weight)),
-          levels = c("score", "1", "0.66", "0.33"))
+          levels = c("score", "1", "0.66", "0.33")),
+    by = "prediction_method"
   )
-  title_plot <- function(gg, g_title, g_subtitle){
-    gg +
-      ggplot2::labs(title = g_title, subtitle = g_subtitle) +
-      ggplot2::theme(plot.title = ggplot2::element_text(size = 20),
-                     plot.subtitle = ggplot2::element_text(size = 15))
-  }
+
+  title_plot <- list(ggplot2::labs(
+    title = paste0(
+      "\nTrait = ", trait,
+      "\nmax n known_genes per CS = ", max_n_known_genes_per_CS,
+      "; max distance = ", variant_to_gene_max_distance,
+      "\nEnrichment = ", enriched_dir
+    ),
+    subtitle = paste0(
+      "Tissue(s) = ", enriched$celltypes$tissue %>% unique %>% paste(collapse = ", "),
+      "\n",
+      paste(strwrap(
+        paste0(
+          "Celltype(s) = ", enriched$celltypes$celltype %>% unique %>% paste(collapse = ", ")
+        ),
+        width = 70
+      ), collapse = "\n")
+    )
+  ))
 
   {pdf(out$PR, height = 10, width = 15, onefile = T)
     # PR score + max
     print(
-      plot_PR(performance, colour = prediction_method) %>%
-        title_plot(g_title, g_subtitle)
+      plot_PR(performance, colour = prediction_method) +
+        title_plot
     )
     # PR max
     print(
-      title_plot(
-        performance %>%
+      performance %>%
         purrr::map(~ .x %>% dplyr::filter(prediction_type == "max")) %>%
         plot_PR(colour = prediction_method) +
         ggrepel::geom_text_repel(data = . %>%
                                    dplyr::ungroup() %>%
                                    dplyr::top_n(5, PR_AUC),
-                                 min.segment.length = 0),
-        g_title, g_subtitle)
+                                 min.segment.length = 0) +
+        title_plot
     )
     # AUPRC
     print(
       performance %>%
-        plot_AUPRC(fill = level) %>%
-        title_plot(g_title, g_subtitle)
+        plot_AUPRC(fill = level) +
+        title_plot
     )
     print(
-      title_plot(
-        performance$summary %>%
+      performance$summary %>%
         dplyr::left_join(weight_facets) %>%
         dplyr::mutate(AUPRC = PR_AUC) %>%
         tidyr::pivot_longer(cols = c(Precision, Recall, AUPRC),
@@ -428,8 +418,8 @@ predict_target_genes <- function(trait = NULL,
                             scales = "free_y", space = "free_y") +
         ggplot2::coord_flip() +
         ggplot2::theme(axis.title = ggplot2::element_blank()) +
-        ggsci::scale_fill_igv(),
-        g_title, g_subtitle)
+        ggsci::scale_fill_igv() +
+        title_plot
     )
   dev.off()}
 

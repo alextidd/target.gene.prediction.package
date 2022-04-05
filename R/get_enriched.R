@@ -55,20 +55,21 @@ get_enriched <- function(variants,
       {dplyr::filter(H3K27ac_specificity_ranked, DHS %in% .$DHS)}
     enrichment <- intersected_DHSs %>%
       # mean specificity rank per celltype
-      dplyr::summarise(across(where(is.numeric), mean)) %>%
-      tidyr::pivot_longer(everything(), names_to = "celltype", values_to = "mean_rank") %>%
+      dplyr::summarise(dplyr::across(.cols = where(is.numeric),
+                                     .fns = ~ mean(.x))) %>%
+      tidyr::pivot_longer(everything(), names_to = "celltype", values_to = "obs_mean_rank") %>%
       dplyr::mutate(
         # uniform distribution parameters
-        N = nrow(DHSs),
-        n = nrow(intersected_DHSs),
-        mean = (N + 1)/2,
-        variance = sqrt((N^2 - 1)/(12 * n)),
+        N = dplyr::n_distinct(DHSs$DHS),
+        n = dplyr::n_distinct(intersected_DHSs$DHS),
+        unif_mean_rank = (N + 1)/2,
+        unif_variance = sqrt((N^2 - 1)/(12 * n)),
         # deviation from uniform distribution = enrichment
-        ratio = mean_rank / mean,
-        p_value = pnorm(mean_rank, mean, variance, lower.tail = F),
+        ratio = obs_mean_rank / unif_mean_rank,
+        p_value = pnorm(obs_mean_rank, unif_mean_rank, unif_variance, lower.tail = F),
         p_value_adjust = p_value %>% p.adjust,
         pass = ((p_value_adjust < p_value_cutoff) & (ratio > ratio_cutoff))) %>%
-      dplyr::arrange(p_value)
+      dplyr::arrange(p_value_adjust)
     write_tibble(enrichment, out$tissue_enrichment)
 
     # Enriched celltypes/tissues
@@ -101,7 +102,7 @@ get_enriched <- function(variants,
            "\nEnriched celltype(s): ", enriched$celltypes$celltype  %>% unique %>% paste(collapse = ", "),
            "\nMissing annotations: ", paste(panel_gaps, collapse = ", "),
            "\nMake sure the enriched celltype has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.",
-           "\nEither run again with `do_all_celltypes_in_enriched_tissue = T`` or lower the enrichment threshold `p_value_cutoff = ",p_value_cutoff,"`")
+           "\nEither run again with `do_all_celltypes_in_enriched_tissue = T` or lower the enrichment threshold `p_value_cutoff = ",p_value_cutoff,"`")
       }
     }
 
