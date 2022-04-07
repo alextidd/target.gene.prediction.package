@@ -6,49 +6,46 @@
 \usage{
 predict_target_genes(
   trait = NULL,
-  outDir = "out",
-  variantsFile = "example_data/data/BC/VariantList.bed",
+  out_dir = NULL,
+  variants_file = NULL,
   known_genes_file = NULL,
-  referenceDir = "reference_data/data/",
+  reference_panels_dir = NULL,
   celltype_of_interest = NULL,
   tissue_of_interest = NULL,
+  celltypes = "enriched_tissues",
   variant_to_gene_max_distance = 2e+06,
   max_n_known_genes_per_CS = Inf,
   min_proportion_of_variants_in_top_H3K27ac = 0.05,
-  do_all_celltypes = F,
-  do_all_celltypes_in_enriched_tissue = T,
   do_scoring = T,
   do_performance = T,
   do_XGBoost = F,
   do_timestamp = F,
-  contact = NULL,
+  HiChIP = NULL,
   H3K27ac = NULL
 )
 }
 \arguments{
 \item{trait}{Optional. The name of the trait of interest.}
 
-\item{outDir}{The output directory in which to save the predictions. Default is "./out".}
+\item{out_dir}{The output directory in which to save the predictions. Default is "./out/{trait}/{celltypes}/".}
 
-\item{variantsFile}{A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants}
+\item{variants_file}{A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants}
 
 \item{known_genes_file}{Optional. The file containing a list of trait known gene symbols. If do_performance is TRUE, must provide a known_genes_file.}
 
-\item{referenceDir}{The directory containing the external, accompanying reference data.}
+\item{reference_panels_dir}{The directory containing the external, accompanying reference panels data.}
 
-\item{celltype_of_interest}{Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.}
+\item{celltype_of_interest}{Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.}
 
 \item{tissue_of_interest}{Optional. The tissue(s) of interest for the trait. Only annotations in these tissues will be used to make predictions.  Argument(s) must match the names of tissues in the metadata.}
 
-\item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The contact data is also already filtered to 2Mb.}
+\item{celltypes}{Dictates which celltypes' annotations are used. Must be one of c("enriched_celltypes", "enriched_tissues", "all_celltypes"). If "enriched_celltypes", annotations from only the enriched celltype(s) will be used. The enriched celltype(s) must have coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table for this to work. If "enriched_tissues", all annotations from the tissue of the enriched celltype(s) will be used. If "all_celltypes", the enrichment analysis is skipped and annotations from all available cell types will be used. Default is "enriched_tissues".}
+
+\item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The HiChIP data is also already filtered to 2Mb.}
 
 \item{max_n_known_genes_per_CS}{In performance analysis, the maximum number of known genes within variant_to_gene_max_distance of the credible set.}
 
 \item{min_proportion_of_variants_in_top_H3K27ac}{A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5\% (0.05).}
-
-\item{do_all_celltypes}{If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.}
-
-\item{do_all_celltypes_in_enriched_tissue}{If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, contact, expression, H3K27ac) in the metadata table.}
 
 \item{do_scoring}{If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.}
 
@@ -58,9 +55,9 @@ predict_target_genes(
 
 \item{do_timestamp}{If TRUE, will save output into a subdirectory timestamped with the data/time of the run.}
 
-\item{contact}{If you are repeatedly running predict_target_genes, you can load the contact object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.}
+\item{HiChIP}{If you are repeatedly running predict_target_genes, you can load the HiChIP object from the reference_panels_dir into the global environment and pass it to the function to prevent redundant re-loading each call to predict_target_genes.}
 
-\item{H3K27ac}{If you are repeatedly running predict_target_genes, you can load the H3K27ac object from the referenceDir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.}
+\item{H3K27ac}{If you are repeatedly running predict_target_genes, you can load the H3K27ac object from the reference_panels_dir into the global environment and pass it to the function to prevent redundant re-loading with each call to predict_target_genes.}
 }
 \value{
 A MultiAssayExperiment object with one assay object per annotation, one row per variant-transcript pair and one column per cell type (or 'value' if it is a non-cell-type-specific annotation).

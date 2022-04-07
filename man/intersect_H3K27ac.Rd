@@ -4,7 +4,7 @@
 \alias{intersect_H3K27ac}
 \title{Intersect with the DHS annotations}
 \usage{
-intersect_H3K27ac(l, query, H3K27ac, ...)
+intersect_H3K27ac(l, query, DHSs, H3K27ac, ...)
 }
 \arguments{
 \item{query}{A query bed}

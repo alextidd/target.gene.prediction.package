@@ -1,19 +1,15 @@
 matricise_by_pair <- function(df,
                               vxt_master){
   # add value = 1 if there is no value (numeric) column
-  if(df %>% dplyr::ungroup() %>% dplyr::select(where(is.numeric)) %>% ncol == 0){df$value <- 1}
+  value_cols <- df %>% dplyr::ungroup() %>% dplyr::select(where(is.numeric)) %>% names
+  if (length(value_cols) == 0) { value_cols <- "value" ; df$value <- 1}
 
-  # MA needs all rows in the same order
-  mat <- df %>%
-    dplyr::rowwise() %>%
-    # aggregate per pair - mean across samples
-    dplyr::mutate(value = mean(dplyr::c_across(where(is.numeric)), na.rm = T)) %>%
-    dplyr::ungroup() %>%
-    dplyr::right_join(vxt_master, by = intersect(names(vxt_master), names(df))) %>%
-    dplyr::select(pair, value) %>%
-    dplyr::mutate_if(is.numeric, tidyr::replace_na, replace = 0) %>%
-    tibble::column_to_rownames("pair") %>%
+  mat <- vxt_master %>%
+    # arrange rows in same order as vxt_master
+    dplyr::left_join(df, by = intersect(names(vxt_master), names(df))) %>%
+    dplyr::select(dplyr::all_of(value_cols)) %>%
     as.matrix
+  mat[is.na(mat)] <- 0
 
   return(mat)
 }

@@ -12,8 +12,7 @@
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The HiChIP data is also already filtered to 2Mb.
 #' @param max_n_known_genes_per_CS In performance analysis, the maximum number of known genes within variant_to_gene_max_distance of the credible set.
 #' @param min_proportion_of_variants_in_top_H3K27ac A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5\% (0.05).
-#' @param do_all_celltypes If TRUE, the package will combine annotations across all available cell types, not just those with enriched enhancer variants. Default is FALSE.
-#' @param do_all_celltypes_in_enriched_tissue If TRUE, the package will combine all annotations for the tissue of the enriched celltype(s), not just the specifically enriched celltype(s). Default is TRUE. Make sure the enriched celltype has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.
+#' @param celltypes Dictates which celltypes' annotations are used. Must be one of c("enriched_celltypes", "enriched_tissues", "all_celltypes"). If "enriched_celltypes", annotations from only the enriched celltype(s) will be used. The enriched celltype(s) must have coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table for this to work. If "enriched_tissues", all annotations from the tissue of the enriched celltype(s) will be used. If "all_celltypes", the enrichment analysis is skipped and annotations from all available cell types will be used. Default is "enriched_tissues".
 #' @param do_scoring If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.
 #' @param do_performance If TRUE, runs the performance chunk of the script, which measures the performance of the score and each of its constituent annotations in predicting known genes as the targets of nearby variants. Default is FALSE.
 #' @param do_XGBoost If TRUE, runs the XGBoost chunk of the script, which generates a model to predict the targets of variants from all available annotations and rates the importance of each annotation. Default is FALSE.
@@ -29,73 +28,62 @@ predict_target_genes <- function(trait = NULL,
                                  reference_panels_dir = NULL,
                                  celltype_of_interest = NULL,
                                  tissue_of_interest = NULL,
+                                 celltypes = "enriched_tissues",
                                  variant_to_gene_max_distance = 2e6,
                                  max_n_known_genes_per_CS = Inf,
                                  min_proportion_of_variants_in_top_H3K27ac = 0.05,
-                                 do_all_celltypes = F,
-                                 do_all_celltypes_in_enriched_tissue = T,
                                  do_scoring = T,
                                  do_performance = T,
                                  do_XGBoost = F,
                                  do_timestamp = F,
                                  HiChIP = NULL,
                                  H3K27ac = NULL) {
+
   # capture function arguments (do not run when testing internally)
   args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; trait="BC" ; out_dir = "out/" ; variants_file="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/variants/Michailidou2017/FM_variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; do_all_celltypes = F ; do_all_celltypes_in_enriched_tissue = T ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
-  # internally restore run environment:
-  # # args <- dget("out/BC_Michailidou2017_FM/enriched_tissues/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC_Michailidou2017_FM/variants.bed" ; known_genes_file = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC_Michailidou2017_FM/known_genes.txt" ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
+  # for internally restoring a previous run environment:
+  # args <- dget("out/BC_Michailidou2017_FM/all_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
   # SETUP ======================================================================================================
 
   # metadata for all annotations
   metadata <- read_tibble(paste0(reference_panels_dir, "metadata.tsv"), header = T)
 
-  # check options
-  {
-    if(is.null(reference_panels_dir)){stop("Must provide the path to the accompanying reference panels directory!")}
-    if(is.null(variants_file)){"Must provide the path to a file of trait variants!"}
-    if (do_XGBoost) { do_scoring <- T }
-    if (do_performance & is.null(known_genes_file)) { stop("do_performance = TRUE but no known_genes_file provided! Performance analysis requires a known_genes_file.") }
-    if (!is.null(tissue_of_interest)) { if(tissue_of_interest %ni% metadata$tissue) {
-      stop("Provided tissue_of_interest '", tissue_of_interest, "' is not represented in the available data. Must be one of...\n",
-           paste(unique(metadata$tissue), collapse = ", ")) } }
-    if (!is.null(celltype_of_interest)) {
-      coi_annotations <- metadata %>% dplyr::filter(celltype == celltype_of_interest) %>% dplyr::pull(object) %>% unique
-      if (celltype_of_interest %ni% metadata$celltype) {
-        stop("Provided celltype_of_interest '", celltype_of_interest, "' is not represented in the available data. Must be one of...\n",
-             paste(unique(metadata$celltype), collapse = ", ")) }
-      if (length(setdiff(metadata$object, coi_annotations)) > 0){
-        stop("Provided celltype_of_interest '", celltype_of_interest, "' does not have a full panel of annotations available.\nMissing annotation(s) = ",
-             paste(setdiff(metadata$object, coi_annotations), collapse = ", "),
-             "\nEither re-run at tissue-level (tissue_of_interest = ", unique(metadata[metadata$celltype == celltype_of_interest,]$tissue),
-             ") or generate celltype-level annotations for '", celltype_of_interest, "' in the reference data.") } }
-  }
+  # check arguments
+  check_arguments(metadata,
+                  variants_file,
+                  known_genes_file,
+                  reference_panels_dir,
+                  celltype_of_interest,
+                  tissue_of_interest,
+                  celltypes,
+                  do_scoring,
+                  do_performance,
+                  do_XGBoost)
 
-  # define the output
+  # define the output files
+  enriched_dir <- {
+    if (!is.null(celltype_of_interest)) paste0(celltype_of_interest, "_celltype")
+    else if (!is.null(tissue_of_interest)) paste0(tissue_of_interest, "_tissue")
+    else paste0(celltypes)
+  }
   out <- list(
     base = "",
     tissue_enrichment = "tissue_fisher_enrichments.tsv",
     annotations = "target_gene_annotations.tsv",
-    predictions = "target_gene_predictions_full.tsv",
-    max_predictions = "target_gene_predictions_max.tsv",
+    predictions_full = "target_gene_predictions_full.tsv",
+    predictions_max = "target_gene_predictions_max.tsv",
     MA = "MA.rds",
     performance = "performance.tsv",
     PR = "PrecisionRecall.pdf",
     args = "arguments_for_predict_target_genes.R"
   )
-  enriched_dir <- {
-    if(do_all_celltypes) paste0("all_celltypes")
-    else if(!is.null(tissue_of_interest)) paste0(tissue_of_interest, "_tissue")
-    else if(!is.null(celltype_of_interest)) paste0(celltype_of_interest, "_celltype")
-    else if(do_all_celltypes_in_enriched_tissue) paste0("enriched_tissues")
-    else paste0("enriched_celltypes")
-  }
-  if(is.null(out_dir)){
-    out <- paste0("out/", trait, "/") %>%
-      paste0(enriched_dir, "/") %>%
+  if (is.null(out_dir)) {
+    out <- "out/" %>%
+      paste0(trait, "/", enriched_dir, "/") %>%
       { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
       { purrr::map(out, function(x) paste0(., x)) }
   } else { out <- out %>% purrr::map(function(x) paste0(out_dir, "/", x)) }
@@ -105,12 +93,11 @@ predict_target_genes <- function(trait = NULL,
   dput(args, file = out$args)
 
   # ggplot theme settings
-  theme_set(
-    theme_classic() +
-      theme(
-        title = element_text(size = 20),
-        axis.title = element_text(size = 18),
-        axis.text = element_text(size = 15)))
+  ggplot2::theme_set(
+    ggplot2::theme_classic() +
+      ggplot2::theme(
+        title = ggplot2::element_text(size = 20),
+        text  = ggplot2::element_text(size = 18)))
 
   # import the user-provided variants
   cat(" > Importing variants...\n")
@@ -159,8 +146,7 @@ predict_target_genes <- function(trait = NULL,
                            # options to manually change annotation groupings (passed by user):
                            celltype_of_interest,
                            tissue_of_interest,
-                           do_all_celltypes,
-                           do_all_celltypes_in_enriched_tissue)
+                           celltypes)
 
   # 2) VARIANTS ======================================================================================================
   # get variant-to-gene universe ('enhancer variants')
@@ -169,8 +155,8 @@ predict_target_genes <- function(trait = NULL,
   # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs < variant_to_gene_max_distance apart)
   vxt_master <- get_vxt_master(variants,
                                TSSs,
-                               variant_to_gene_max_distance) 
-  
+                               variant_to_gene_max_distance)
+
   # 3) ANNOTATING ======================================================================================================
   cat("3) Annotating enhancer-gene pairs...\n")
 
@@ -226,27 +212,12 @@ predict_target_genes <- function(trait = NULL,
   master <- c(v, t, g, c, vxt, vxg, cxt) %>%
     purrr::map(~ matricise_by_pair(., vxt_master))
 
-  # # MultiAssayExperiment colData
-  # colData <- master %>%
-  #   lapply(colnames) %>%
-  #   unlist %>%
-  #   as.data.frame %>%
-  #   dplyr::distinct() %>%
-  #   dplyr::rename(celltype = ".") %>%
-  #   dplyr::left_join(metadata %>% dplyr::distinct(celltype, tissue), by = "celltype") %>%
-  #   tibble::column_to_rownames("celltype")
-  #
-  # # celltype-specific annotations have as many columns as there are annotated celltypes
-  # # non-celltype-specific annotations have one `value` column, which applies across all celltypes
-  # MA <- MultiAssayExperiment::MultiAssayExperiment(experiments = master, colData = colData)
-  # saveRDS(MA, file = out$MA)
-
   # 5) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
 
   # declare weights (ALL OTHERS = 0.33)
-  weights <- list(
+  upweighted <- list(
     vxt_TADs = 1,
     vxt_inv_distance = 1,
     vxt_intron = 1,
@@ -260,75 +231,39 @@ predict_target_genes <- function(trait = NULL,
     v_inv_n_genes = 0.66,
     c_inv_n_variants = 0.66
   )
+  weights <- names(master) %>%
+    sapply(function(annotation){
+      if(annotation %in% names(upweighted)){ upweighted[[annotation]] } else { 0.33 }
+    })
 
-  # Generating a single score for each variant-transcript pair, with evidence
-  # mean(all non-celltype-specific values, enriched celltype-specific annotations) * (expression binary)
-  scores <- master %>% names %>%
-    sapply(function(annotation) {
-      # weight annotations
-      master[[annotation]] %>%
-        tibble::as_tibble(rownames = "pair") %>%
-        dplyr::mutate(
-          value_unweighted = value,
-          value = value * { if (annotation %in% names(weights)) weights[[annotation]] else 0.33 }
-        )
-    }, USE.NAMES = T, simplify = F) %>%
-    dplyr::bind_rows(.id = "prediction_method") %>%
-    # calculate score (mean annotation value)
-    dplyr::group_by(pair) %>%
-    dplyr::mutate(
-      score = mean(value),
-      score_unweighted = mean(value_unweighted)
-    ) %>%
-    dplyr::ungroup() %>%
-    # spread out annotation values
-    tidyr::pivot_wider(
-      id_cols = c(pair, score, score_unweighted),
-      names_from = prediction_method,
-      values_from = value
-    ) %>%
-    # get CSs and symbols
-    dplyr::right_join(
-      vxt_master %>% dplyr::select(chrom, start = start.variant, end = end.variant,
-                                   pair, variant, cs, enst, symbol),
-      by = "pair"
-    ) %>%
-    # multiply score by expression binary
-    dplyr::mutate(
-      score_expressed = score * g_expressed
-    ) %>%
-    # select columns
-    dplyr::select(
-      cs,
-      chrom:end,
-      variant,
-      enst,
-      symbol,
-      score,
-      where(is.numeric)
-    )
+  # weight and average
+  means <- names(master) %>%
+    sapply(function(annotation){rowMeans(master[[annotation]] * weights[[annotation]])})
+  means <- cbind(means,
+                 score = rowMeans(means),
+                 score_expressed = rowMeans(means) * means[, "g_expressed"])
 
   # predictions to save
-  predictions <- scores %>%
-    # filter to max score per CS-gene pair
-    dplyr::group_by(cs, symbol) %>%
-    dplyr::filter(score == max(score)) %>% # TODO: this will not get all unweighted maximums! must fix
-    # annotate max gene per CS
+  # all vxt annotations
+  annotations <- dplyr::bind_cols(
+    vxt_master %>% dplyr::select(cs, chrom, start = start.variant, end = end.variant, variant, symbol, enst),
+    means %>% dplyr::as_tibble()) %>%
+    dplyr::arrange(-score_expressed)
+  # max score per vxg
+  predictions_full <- annotations %>%
+    dplyr::select(cs:symbol, score = score_expressed) %>%
+    dplyr::group_by(variant, symbol) %>%
+    dplyr::filter(score == max(score))
+  # max gene per cs
+  predictions_max <- predictions_full %>%
+    dplyr::select(cs, variant, symbol, score) %>%
     dplyr::group_by(cs) %>%
-    dplyr::mutate(max = score == max(score)) %>%
-    # order
-    dplyr::select(cs, chrom:end, variant, symbol, score, max) %>%
-    dplyr::arrange(-score)
-
-  # max prediction per CS to save
-  max <- predictions %>%
-    dplyr::filter(max) %>%
-    dplyr::select(cs, variant, symbol)
+    dplyr::filter(score == max(score) & score > 0)
 
   # write tables
-  write_tibble(scores, filename = out$annotations)
-  write_tibble(predictions, filename = out$predictions)
-  write_tibble(max, filename = out$max_predictions)
+  write_tibble(annotations, filename = out$annotations)
+  write_tibble(predictions_full, filename = out$predictions_full)
+  write_tibble(predictions_max, filename = out$predictions_max)
   }
 
   # 6) PERFORMANCE ======================================================================================================
@@ -341,7 +276,7 @@ predict_target_genes <- function(trait = NULL,
     check_known_genes(known_genes_file)
 
   # Generate PR curves (model performance metric) (only testing protein-coding genes)
-  performance <- scores %>%
+  performance <- annotations %>%
     # get performance
     get_PR(vxt_master, known_genes, pcENSGs, max_n_known_genes_per_CS) %>%
     # add annotation level info
@@ -351,20 +286,19 @@ predict_target_genes <- function(trait = NULL,
   weight_facets <- dplyr::left_join(
     performance$summary %>% dplyr::select(prediction_method),
       dplyr::tibble(prediction_method = names(weights),
-                    weight = unlist(weights))) %>%
-      dplyr::mutate(
-        weight = factor(dplyr::case_when(
-          grepl("^score", prediction_method) ~ "score",
-          is.na(weight) ~ "0.33",
-          TRUE ~ as.character(weight)),
-          levels = c("score", "1", "0.66", "0.33")),
-    by = "prediction_method"
-  )
+                    weight = unlist(weights)),
+    by = "prediction_method") %>%
+    dplyr::mutate(
+      weight = factor(dplyr::case_when(
+        grepl("^score", prediction_method) ~ "score",
+        is.na(weight) ~ "0.33",
+        TRUE ~ as.character(weight)),
+        levels = c("score", "1", "0.66", "0.33")))
 
   title_plot <- list(ggplot2::labs(
     title = paste0(
       "\nTrait = ", trait,
-      "\nmax n known_genes per CS = ", max_n_known_genes_per_CS,
+      "\nmax n known genes per CS = ", max_n_known_genes_per_CS,
       "; max distance = ", variant_to_gene_max_distance,
       "\nEnrichment = ", enriched_dir
     ),
@@ -382,10 +316,9 @@ predict_target_genes <- function(trait = NULL,
 
   {pdf(out$PR, height = 10, width = 15, onefile = T)
     # PR score + max
-    print(
-      plot_PR(performance, colour = prediction_method) +
-        title_plot
-    )
+    print(plot_PR(performance, colour = prediction_method) +
+            title_plot)
+
     # PR max
     print(
       performance %>%
@@ -405,7 +338,7 @@ predict_target_genes <- function(trait = NULL,
     )
     print(
       performance$summary %>%
-        dplyr::left_join(weight_facets) %>%
+        dplyr::left_join(weight_facets, by = "prediction_method") %>%
         dplyr::mutate(AUPRC = PR_AUC) %>%
         tidyr::pivot_longer(cols = c(Precision, Recall, AUPRC),
                             names_to = "metric",
@@ -432,7 +365,7 @@ predict_target_genes <- function(trait = NULL,
   cat("7) Training an XGBoost model...\n")
 
   # format training set
-  full <- scores %>%
+  full <- annotations %>%
     dplyr::mutate(label = (symbol %in% known_genes$symbol) %>% as.numeric) %>%
     dplyr::group_by(cs) %>%
     dplyr::filter(any(label == 1)) %>%
@@ -459,6 +392,6 @@ predict_target_genes <- function(trait = NULL,
 
   cat("\nDONE!\n")
   # 8) SAVE ===
-  return(scores)
+  return(annotations)
 }
 

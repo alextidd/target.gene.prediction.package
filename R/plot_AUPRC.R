@@ -12,5 +12,5 @@ plot_AUPRC <- function(performance, ...){
     ggplot2::labs(x = "Predictor",
                   y = "PR AUC") +
     ggsci::scale_fill_igv() +
-    ggplot2::coord_flip() 
+    ggplot2::coord_flip()
 }
