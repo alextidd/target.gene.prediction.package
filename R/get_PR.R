@@ -82,7 +82,7 @@ get_PR <- function(scores, vxt_master, known_genes, pcENSGs, max_n_known_genes_p
                   Recall = TP / (TP + FN),
                   Sensitivity = TP / (TP + FN),
                   Specificity = TN / (TN + FP),
-                  Fscore = (Precision * Recall) / (Precision + Recall)) %>%
+                  F_score = (Precision * Recall) / (Precision + Recall)) %>%
     dplyr::ungroup() %>%
     # add area under curve metric to summary
     dplyr::left_join(performance$PR %>%

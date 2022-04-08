@@ -28,7 +28,7 @@ get_performance <- function(predictions, prediction_col){
                   Recall = TP / (TP + FP),
                   Sensitivity = TP / (TP + FP),
                   Specificity = TN / (TN + FP),
-                  Fscore = (Precision * Recall) / (Precision + Recall))
+                  F_score = (Precision * Recall) / (Precision + Recall))
 
 }
 

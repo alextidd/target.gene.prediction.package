@@ -72,7 +72,7 @@ predict_target_genes <- function(trait = NULL,
   }
   out <- list(
     base = "",
-    tissue_enrichment = "tissue_fisher_enrichments.tsv",
+    tissue_enrichments = "tissue_enrichments.tsv",
     annotations = "target_gene_annotations.tsv",
     predictions_full = "target_gene_predictions_full.tsv",
     predictions_max = "target_gene_predictions_max.tsv",
@@ -143,7 +143,7 @@ predict_target_genes <- function(trait = NULL,
                            metadata,
                            out,
                            min_proportion_of_variants_in_top_H3K27ac,
-                           # options to manually change annotation groupings (passed by user):
+                           # options to manually choose annotation group (passed by user):
                            celltype_of_interest,
                            tissue_of_interest,
                            celltypes)
@@ -324,10 +324,7 @@ predict_target_genes <- function(trait = NULL,
       performance %>%
         purrr::map(~ .x %>% dplyr::filter(prediction_type == "max")) %>%
         plot_PR(colour = prediction_method) +
-        ggrepel::geom_text_repel(data = . %>%
-                                   dplyr::ungroup() %>%
-                                   dplyr::top_n(5, PR_AUC),
-                                 min.segment.length = 0) +
+        ggrepel::geom_text_repel(min.segment.length = 0, max.overlaps = Inf) +
         title_plot
     )
     # AUPRC
@@ -339,11 +336,11 @@ predict_target_genes <- function(trait = NULL,
     print(
       performance$summary %>%
         dplyr::left_join(weight_facets, by = "prediction_method") %>%
-        dplyr::mutate(AUPRC = PR_AUC) %>%
-        tidyr::pivot_longer(cols = c(Precision, Recall, AUPRC),
+        dplyr::mutate(fsc = F_score) %>%
+        tidyr::pivot_longer(cols = c(F_score, PR_AUC, Precision, Recall),
                             names_to = "metric",
                             values_to = "performance") %>%
-        ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, PR_AUC),
+        ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, fsc),
                                      y = performance,
                                      fill = level)) +
         ggplot2::geom_col() +

@@ -69,7 +69,7 @@ get_enriched <- function(variants,
         p_value_adjust = p_value %>% p.adjust,
         pass = ((p_value_adjust < p_value_cutoff) & (ratio > ratio_cutoff))) %>%
       dplyr::arrange(p_value_adjust)
-    write_tibble(enrichment, out$tissue_enrichment)
+    write_tibble(enrichment, out$tissue_enrichments)
 
     # Enriched celltypes/tissues
     enriched[["celltypes"]] <- enrichment %>%
@@ -84,7 +84,7 @@ get_enriched <- function(variants,
 
     # Error message if no cell types were enriched
     if(nrow(enriched$celltypes)==0){
-      stop("No enriched cell types found! Enrichment analysis saved to ", out$tissue_enrichment)}
+      stop("No enriched cell types found! Enrichment analysis saved to ", out$tissue_enrichments)}
 
     # Enriched celltype(s)/tissue(s)
     if(celltypes == "enriched_tissues"){
