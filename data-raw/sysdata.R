@@ -1,17 +1,18 @@
 ## code to prepare `sysdata` dataset goes here
 library(devtools) ; setwd("/working/lab_jonathb/alexandT/tgp") ; load_all()
-GENCODEPath="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/output/GENCODE/"
-REVELPath="/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/output/REVEL/"
+reference_panels_dir <- "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/"
+GENCODEPath <- paste0(reference_panels_dir, "/output/GENCODE/")
+REVELPath <- paste0(reference_panels_dir, "/output/REVEL/")
 
 # GENCODE
 pcENSGs <- read_tibble(paste0(GENCODEPath, "proteincoding.gencode.v34lift37.basic.ENSGs.txt"))$V1
 TSSs <- import_BED(gzfile(paste0(GENCODEPath, "gencode.v34lift37.basic.tss.bed.gz")), metadata_cols = c("ensg", "symbol", "enst"))
-promoters <- import_BED(gzfile(paste0(GENCODEPath, "gencode.v34lift37.basic.promoter.bed.gz") ), metadata_cols = "enst")
+promoters <- import_BED(gzfile(paste0(GENCODEPath, "gencode.v34lift37.basic.promoter.bed.gz")), metadata_cols = "enst")
 introns <- import_BED(gzfile(paste0(GENCODEPath, "gencode.v34lift37.basic.intron.bed.gz")), metadata_cols = "enst")
 exons <- import_BED(gzfile(paste0(GENCODEPath, "gencode.v34lift37.basic.exon.bed.gz")), metadata_cols = "enst")
 
 # ChrSizes
-ChrSizes <- read_tibble( "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/data/hg/hg19.genome")
+ChrSizes <- read_tibble(paste0(reference_panels_dir, "data/hg/hg19.genome"))
 names(ChrSizes) <- c("chrom", "size")
 
 # REVEL - deleterious coding variants - only those found in GENCODE Basic protein-coding # TODO: fix this in upstream scripts

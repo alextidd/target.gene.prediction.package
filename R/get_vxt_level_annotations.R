@@ -104,8 +104,10 @@ get_vxt_level_annotations <- function(variants,
 
   # TADs
   TADs_w_ID <- enriched$TADs %>%
-    purrr::map(~ dplyr::mutate(., TAD = paste0("i.", dplyr::row_number()))) %>%
-    dplyr::bind_rows(.id = "celltype")
+    dplyr::bind_rows(.id = "celltype") %>%
+    dplyr::group_by(celltype) %>%
+    dplyr::mutate(TAD = paste0(celltype, "_", dplyr::row_number())) %>%
+    dplyr::ungroup()
   vxt$TADs <- dplyr::inner_join(
     bed_intersect_left(
       variants, TADs_w_ID, keepBcoords = F) %>%
