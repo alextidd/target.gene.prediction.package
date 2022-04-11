@@ -29,10 +29,7 @@ get_PR <- function(scores, vxt_master, known_genes, pcENSGs, max_n_known_genes_p
     ) %>%
     # max prediction
     dplyr::group_by(prediction_method, cs) %>%
-    dplyr::mutate(max = as.numeric(score == max(score) & score > 0)
-                  #, max_score = dplyr::case_when(max == 0 ~ 0,
-                  #                              TRUE ~ score)
-                  ) %>%
+    dplyr::mutate(max = as.numeric(score == max(score) & score > 0)) %>%
     # gather prediction types
     tidyr::pivot_longer(
       c(score, max), #, max_score

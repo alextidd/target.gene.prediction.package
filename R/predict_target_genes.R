@@ -202,6 +202,8 @@ predict_target_genes <- function(trait = NULL,
   cxt <- get_cxt_level_annotations(vxt,
                                    variants)
 
+  cxg <- get_cxg_level_annotations(vxt_master)
+
   # 4) ALL INPUTS ======================================================================================================
   # Master variant-x-transcript matrix list
   # -> wide-format (one row per cs:variant|transcript pair, one column per celltype)
@@ -219,6 +221,7 @@ predict_target_genes <- function(trait = NULL,
   # declare weights (ALL OTHERS = 0.33)
   upweighted <- list(
     vxt_TADs = 1,
+    cxg_closest = 1,
     vxt_inv_distance = 1,
     vxt_intron = 1,
     vxg_missense = 1,
@@ -327,10 +330,20 @@ predict_target_genes <- function(trait = NULL,
         ggrepel::geom_text_repel(min.segment.length = 0, max.overlaps = Inf) +
         title_plot
     )
-    # AUPRC
+    # F score max
     print(
-      performance %>%
-        plot_AUPRC(fill = level) +
+      performance$summary %>%
+        dplyr::filter(prediction_type == "max") %>%
+        dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
+        dplyr::distinct() %>%
+        ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, F_score),
+                                     y = F_score,
+                                     fill = level)) +
+        ggplot2::geom_col() +
+        ggplot2::labs(x = "Predictor",
+                      y = "F score") +
+        ggsci::scale_fill_igv() +
+        ggplot2::coord_flip() +
         title_plot
     )
     print(
