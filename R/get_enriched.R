@@ -8,7 +8,6 @@ get_enriched <- function(variants,
                          TADs,
                          metadata,
                          out,
-                         min_proportion_of_variants_in_top_H3K27ac,
                          celltype_of_interest,
                          tissue_of_interest,
                          celltypes,
@@ -67,8 +66,8 @@ get_enriched <- function(variants,
         ratio = obs_mean_rank / unif_mean_rank,
         p_value = pnorm(obs_mean_rank, unif_mean_rank, unif_variance, lower.tail = F),
         p_value_adjust = p_value %>% p.adjust,
-        pass = ((p_value_adjust < p_value_cutoff) & (ratio > ratio_cutoff))) %>%
-      dplyr::arrange(p_value_adjust)
+        pass = ((p_value < p_value_cutoff) & (ratio > ratio_cutoff))) %>%
+      dplyr::arrange(p_value)
     write_tibble(enrichment, out$tissue_enrichments)
 
     # Enriched celltypes/tissues

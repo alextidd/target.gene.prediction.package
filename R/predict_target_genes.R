@@ -43,7 +43,7 @@ predict_target_genes <- function(trait = NULL,
   args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="EOC_Jones2020_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # for internally restoring a previous run environment:
   # args <- dget("out/BC_Michailidou2017_FM/all_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
@@ -142,7 +142,6 @@ predict_target_genes <- function(trait = NULL,
                            TADs,
                            metadata,
                            out,
-                           min_proportion_of_variants_in_top_H3K27ac,
                            # options to manually choose annotation group (passed by user):
                            celltype_of_interest,
                            tissue_of_interest,
@@ -158,32 +157,27 @@ predict_target_genes <- function(trait = NULL,
                                variant_to_gene_max_distance)
 
   # 3) ANNOTATING ======================================================================================================
-  cat("3) Annotating enhancer-gene pairs...\n")
+  cat("3) Annotating variant-transcript pairs at every level...\n")
 
-  # 3a) VARIANT-LEVEL INPUTS ====
-  cat(" > V\tAnnotating variants...\n")
+  cat("> V\tAnnotating variants...\n")
   v <- get_v_level_annotations(variants,
                                H3K27ac,
                                enriched,
                                vxt_master,
                                DHSs)
 
-  # 3b) TRANSCRIPT-LEVEL INPUTS ====
   cat(" > T\tAnnotating transcripts...\n")
   t <- get_t_level_annotations(TSSs,
                                DHSs,
                                enriched)
 
-  # 3c) GENE-LEVEL INPUTS ===
   cat(" > G\tAnnotating genes...\n")
   g <- get_g_level_annotations(vxt_master,
                                enriched)
 
-  # 3d) CS-LEVEL INPUTS ====
   cat(" > C\tAnnotating credible sets...\n")
   c <- get_c_level_annotations(variants)
 
-  # 3e) VARIANT-x-TRANSCRIPT-LEVEL INPUTS ====
   cat(" > VxT\tAnnotating variant x transcript pairs...\n")
   vxt <- get_vxt_level_annotations(variants,
                                    DHSs,
@@ -191,17 +185,16 @@ predict_target_genes <- function(trait = NULL,
                                    variant_to_gene_max_distance,
                                    enriched)
 
-  # 3f) VARIANT-X-GENE-LEVEL INPUTS ===
   cat(" > VxG\tAnnotating variant x gene pairs...\n")
   vxg <- get_vxg_level_annotations(variants,
                                    vxt_master,
                                    enriched)
 
-  # 3g) CS-X-TRANSCRIPT-LEVEL INPUTS ====
   cat(" > CxT\tAnnotating credible set x transcript pairs...\n")
   cxt <- get_cxt_level_annotations(vxt,
                                    variants)
 
+  cat(" > CxG\tAnnotating credible set x gene pairs...\n")
   cxg <- get_cxg_level_annotations(vxt_master)
 
   # 4) ALL INPUTS ======================================================================================================
@@ -211,33 +204,17 @@ predict_target_genes <- function(trait = NULL,
   # -> pair ID rownames: variant|enst
   # Each annotation will be aggregated across samples, taking the maximum value per pair
   cat("4) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
-  master <- c(v, t, g, c, vxt, vxg, cxt) %>%
+  master <- c(v, t, g, c, vxt, vxg, cxt, cxg) %>%
     purrr::map(~ matricise_by_pair(., vxt_master))
 
   # 5) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
 
-  # declare weights (ALL OTHERS = 0.33)
-  upweighted <- list(
-    vxt_TADs = 1,
-    cxg_closest = 1,
-    vxt_inv_distance = 1,
-    vxt_intron = 1,
-    vxg_missense = 1,
-    vxg_nonsense = 1,
-    vxg_splicesite = 1,
-    t_H3K27ac_signal = 1,
-    g_expressed = 1,
-    g_expression_signal = 1,
-    g_expression_specificity = 1,
-    v_inv_n_genes = 0.66,
-    c_inv_n_variants = 0.66
-  )
-  weights <- names(master) %>%
-    sapply(function(annotation){
-      if(annotation %in% names(upweighted)){ upweighted[[annotation]] } else { 0.33 }
-    })
+  # get weights (ALL OTHERS = 0.33)
+  annotations_metadata <- read_tibble("data/metadata.tsv", header = T)
+  weights <- as.list(annotations_metadata$weight) %>% setNames(annotations_metadata$annotation)
+  if(setdiff(names(master), names(weights)) > 0){stop("Annotation ", setdiff(names(master), names(weights)), "does not have a weight in the annotations metadata!")}
 
   # weight and average
   means <- names(master) %>%
