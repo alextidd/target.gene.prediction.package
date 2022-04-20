@@ -15,7 +15,6 @@ predict_target_genes(
   celltypes = "enriched_tissues",
   variant_to_gene_max_distance = 2e+06,
   max_n_known_genes_per_CS = Inf,
-  min_proportion_of_variants_in_top_H3K27ac = 0.05,
   do_scoring = T,
   do_performance = T,
   do_XGBoost = F,
@@ -44,8 +43,6 @@ predict_target_genes(
 \item{variant_to_gene_max_distance}{The maximum absolute distance (bp) across which variant-gene pairs are considered. Default is 2Mb. The HiChIP data is also already filtered to 2Mb.}
 
 \item{max_n_known_genes_per_CS}{In performance analysis, the maximum number of known genes within variant_to_gene_max_distance of the credible set.}
-
-\item{min_proportion_of_variants_in_top_H3K27ac}{A threshold proportion of variants that reside in the specific H3K27ac-x-DHSs of a celltype for that celltype to be considered enriched. Default is 5\% (0.05).}
 
 \item{do_scoring}{If TRUE, runs the scoring chunk of the script, which combines all of the constituent MAE annotations into one score per transcript-variant pair. Default is FALSE.}
 

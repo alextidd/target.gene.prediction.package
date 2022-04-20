@@ -3,127 +3,72 @@ TGP Tour
 Alexandra Tidd
 October 28, 2021
 
-## Interactive development
+## predict\_target\_genes()
 
-To simulate installing and loading the package during interactive development...
+TGP is a package to predict the target genes of fine-mapped variants of a trait.
 
-``` r
-setwd("/working/lab_jonathb/alexandT/tgp/")
-devtools::load_all()
-```
-
-This package was written using package development conventions from <https://r-pkgs.org/>. The functions are all documented, so once the package is loaded you can access the help pages for individual functions, which explain all the arguments. `predict_target_genes()` is the user-facing master function of this package. All other functions are helper functions called by `predict_target_genes()`.
+`predict_target_genes()` is the master, user-facing function of this package. All other functions are helper functions called by `predict_target_genes()`. The functions are all documented, so once the package is loaded you can access the help pages for individual functions, which explain all the arguments.
 
 ``` r
 ?predict_target_genes()
 ```
 
-If you also want the external reference data within the package directory, you can copy it over to mirror my structure...
+### Package data
+
+This package uses both reference genomic annotation datasets and user-provided trait-specific datasets. Some data that accompanies the package must be downloaded separately. The reference panels and example trait data are saved locally...
 
 ``` bash
-MyPackageDir=/working/lab_jonathb/alexandT/tgp/
-YourPackageDir=path/to/your/copy/of/tgp/
-mkdir -p $YourPackageDir/{reference_data,example_data}/data
-cp -r $MyPackageDir/reference_data/data/* $YourPackageDir/reference_data/data/
-cp -r $MyPackageDir/example_data/data/* $YourPackageDir/example_data/data/
+package_data_dir=/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/
+reference_panels_dir=$package_data_dir/reference_panels/output/
+traits_dir=$package_data_dir/traits/output/
 ```
 
-To run `predict_target_genes()`...
+#### Reference data
+
+##### Internal reference data
+
+Smaller generic reference datasets, including chromosome sizes, GENCODE annotations and REVEL annotations (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`, `missense`, `nonsense`, `splicesite`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`. The raw data from which these objects are derived are in the reference panels data directory and the scripts to generate the output are in the reference panels code directory.
+
+##### External reference data
+
+Larger cell-type-specific reference panels are stored externally as local files in the reference panels output directory. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible scripts to generate these files are in the reference panels code directory.
 
 ``` r
-# These paths work if you copied across my structure, as above. The default paths are full paths to my files, so should work the same.
-MA <- predict_target_genes(
-  trait = "BC",
-  outDir = "out/",
-  variantsFile = "example_data/data/BC/VariantList.bed",
-  driversFile = "example_data/data/BC/Drivers.txt",
-  do_scoring = T,
-  do_performance = T,
-  do_XGBoost = T
-  )
+list.files("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/")
 ```
 
-If you wish to run the internal code of the `R/predict_target_genes.R` script step-by-step for development and debugging, you can add its default arguments to your global environment...
+    ## [1] "DHSs"         "expression"   "GENCODE"      "H3K27ac"      "HiChIP"      
+    ## [6] "metadata.tsv" "REVEL"        "TADs"
 
-``` r
-setwd("/working/lab_jonathb/alexandT/tgp/") ; library(devtools) ; load_all() 
-setwd("/working/lab_jonathb/alexandT/tgp") ; 
-celltype_of_interest = NULL 
-tissue_of_interest = NULL 
-trait="BC" 
-outDir = "out/" 
-variantsFile="/working/lab_jonathb/alexandT/tgp/example_data/data/BC/VariantList.bed" 
-driversFile = "/working/lab_jonathb/alexandT/tgp/example_data/data/BC/Drivers.txt" 
-referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/" 
-variant_to_gene_max_distance = 2e6 
-min_proportion_of_variants_in_top_H3K27ac = 0.05 
-do_all_celltypes = F 
-do_all_celltypes_in_enriched_tissue = T 
-do_scoring = T 
-do_performance = T 
-do_XGBoost = T 
-do_timestamp = F  
+#### User-provided data
+
+There is one required user-provided file for the `predict_target_genes()` function: a list of trait variants (the `variants_file` argument). A list of known genes for the trait (the `known_genes_file` argument) is needed only if `do_performance = T`. Example inputs can be found in the example traits directory for several traits.
+
+``` bash
+(cd /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/ ; ls -d */)
 ```
 
-All functions in the package, unless generic, use the same object names as `predict_target_genes()`, so you can also run the internal code of the helper functions directly as long as you have already run the internal code of `predict_target_genes()` up to the point at which that helper function is called. This allows you to run the complete code line-by-line for debugging package functions.
+    ## BC_Michailidou2017_FM/
+    ## BC_Michailidou2017_LD/
+    ## BloodCancer_Law2017andWent2018_LD/
+    ## CRC_Law2019_LD/
+    ## EC_Wang2022_LD/
+    ## EOC_Jones2020_FM/
+    ## IBD_Huang2017_FM/
+    ## IBD_Huang2017_LD/
+    ## Lymphoma_Sud2018_LD/
+    ## PrCa_Dadaev2018_FM/
+    ## PrCa_Giambartolomei2021_FM/
+    ## PrCa_Giambartolomei2021_LD/
+    ## PrCa_GWASCatalog_LD/
+    ## PrCa_Schumacher2018_LD/
 
-If you are calling `predict_target_genes()` repeatedly in the same session, you can load the large reference objects `H3K27ac` and `contact` into the global environment once, and then pass them to the function pre-loaded. This prevents redundant re-loading with each call to `predict_target_genes()`.
-
-``` r
-# 1. load referenceDir objects
-referenceDir = "/working/lab_jonathb/alexandT/tgp/reference_data/data/"
-contact <- readRDS(paste0(referenceDir, "contact.rda"))
-H3K27ac <- readRDS(paste0(referenceDir, "H3K27ac.rda"))
-# 2. pass objects to predict_target_genes for quicker runtime
-MA <- predict_target_genes(
-  trait = "BC",
-  outDir = "out/",
-  variantsFile = "example_data/data/BC/VariantList.bed",
-  driversFile = "example_data/data/BC/Drivers.txt",
-  do_scoring = T,
-  do_performance = T,
-  do_XGBoost = T,
-  contact = contact,
-  H3K27ac = H3K27ac
-  )
-```
-
-## Package data
-
-This package will use both reference genomic annotation datasets and user-provided trait-specific datasets.
-
-### Reference data
-
-#### Internal reference data
-
-Smaller generic reference datasets, including chromosome sizes, GENCODE annotations and REVEL annotations (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`, `missense`, `nonsense`, `splicesite`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`.
-
-#### External reference data
-
-Larger cell-type-specific reference datasets are stored as local files in `reference_data/data/`. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible code to generate these files is in `reference_data/data-raw/`
-
-``` r
-list.files("/working/lab_jonathb/alexandT/tgp/reference_data/data/")
-```
-
-    ## [1] "all_metadata.tsv"                           
-    ## [2] "contact.rds"                                
-    ## [3] "expressed.rds"                              
-    ## [4] "expression.rds"                             
-    ## [5] "H3K27ac.rds"                                
-    ## [6] "specific_H3K27ac_closest_specific_genes.rds"
-    ## [7] "TADs.rds"
-
-### User-provided data
-
-There is one required user-provided file for the `predict_target_genes()` function: a list of trait variants (the `variantsFile` argument). A list of trait drivers (the `driversFile` argument) is needed only if `do_performance = T` is set. Example inputs can be found in my local `example_data/data/` directory. Full paths to these are set as the default arguments of the function.
-
-#### Trait variants
+##### Trait variants
 
 The variants file should be a BED file with metadata columns for the variant name and the credible set to which it belongs.
 
 ``` bash
-head /working/lab_jonathb/alexandT/tgp/example_data/data/BC/VariantList.bed
+head /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC_Michailidou2017_FM/variants.bed
 ```
 
     ## chr1 10551762    10551763    rs657244:10551763:A:G   BCAC_FM_1.1
@@ -137,12 +82,12 @@ head /working/lab_jonathb/alexandT/tgp/example_data/data/BC/VariantList.bed
     ## chr1 10581050    10581051    rs2506885:10581051:A:T  BCAC_FM_1.1
     ## chr1 10581657    10581658    rs2056417   BCAC_FM_1.1
 
-#### Trait drivers
+##### Trait known genes
 
-The drivers file should be a file with a single column of driver gene symbols. These symbols should be GENCODE-compatible.
+The known genes file should be a file with a single column of driver gene symbols. These symbols must be GENCODE-compatible.
 
 ``` bash
-head /working/lab_jonathb/alexandT/tgp/example_data/data/BC/Drivers.txt
+head /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC_Michailidou2017_FM/known_genes.txt
 ```
 
     ## AKT1
@@ -155,3 +100,57 @@ head /working/lab_jonathb/alexandT/tgp/example_data/data/BC/Drivers.txt
     ## CDKN1B
     ## CHEK2
     ## CTCF
+
+### Running predict\_target\_genes()
+
+To run `predict_target_genes()`...
+
+``` r
+package_data_dir <- "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/"
+MA <- predict_target_genes(
+  trait = "BC_Michailidou2017_FM",
+  variants_file = paste0(package_data_dir, "traits/output/BC_Michailidou2017_FM/variants.bed"),
+  known_genes_file = paste0(package_data_dir, "traits/output/BC_Michailidou2017_FM/known_genes.txt"),
+  reference_panels_dir = paste0(package_data_dir, "reference_panels/output/")
+  )
+```
+
+Unless an `out_dir` argument is passed, the results will be saved to "out/${trait}/${celltypes}/". If `do_timestamp = T`, then the run results will be saved to a timestamped subdirectory.
+
+If you are calling `predict_target_genes()` repeatedly in the same session, you can load the large reference objects `H3K27ac` and `HiChIP` into the global environment once, and then pass them to the function pre-loaded. This prevents redundant re-loading with each call to `predict_target_genes()`.
+
+``` r
+# 1. load large reference panel objects
+package_data_dir <- "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/"
+HiChIP <- readRDS(paste0(package_data_dir, "reference_panels/output/HiChIP/HiChIP.rds"))
+H3K27ac <- readRDS(paste0(package_data_dir, "reference_panels/output/H3K27ac/H3K27ac.rds"))
+# 2. pass objects to predict_target_genes for a quicker runtime
+MA <- predict_target_genes(
+  trait = "BC_Michailidou2017_FM",
+  variants_file = paste0(package_data_dir, "traits/output/BC_Michailidou2017_FM/variants.bed"),
+  known_genes_file = paste0(package_data_dir, "traits/output/BC_Michailidou2017_FM/known_genes.txt"),
+  reference_panels_dir = paste0(package_data_dir, "reference_panels/output/"),
+  HiChIP = HiChIP,
+  H3K27ac = H3K27ac
+  )
+```
+
+## Interactive development
+
+To simulate installing and loading the package during interactive development...
+
+``` r
+setwd("/working/lab_jonathb/alexandT/tgp/")
+devtools::load_all()
+```
+
+This package was written using package development conventions from <https://r-pkgs.org/>.
+
+All of the arguments passed to `predict_target_genes()` in a given run are written to `arguments_for_predict_target_genes.R` in the output directory. If you wish to restore the internal environment of a run in your global environment to run the `R/predict_target_genes.R` script...
+
+``` r
+args <- dget("out/BC_Michailidou2017_FM/enriched_tissues/arguments_for_predict_target_genes.R") 
+list2env(args, envir=.GlobalEnv)
+```
+
+All functions in the package, unless generic, use the same object names as `predict_target_genes()`, so you can also run the internal code of the helper functions directly as long as you have already run the internal code of `predict_target_genes()` up to the point at which that helper function is called. This allows you to run the complete pipeline line-by-line for package debugging and development.
