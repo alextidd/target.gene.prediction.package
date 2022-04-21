@@ -56,7 +56,10 @@ get_enriched <- function(variants,
       dplyr::summarise(dplyr::across(.cols = where(is.numeric),
                                      .fns = ~ mean(.x))) %>%
       tidyr::pivot_longer(everything(), names_to = "celltype", values_to = "obs_mean_rank") %>%
-      dplyr::mutate(
+      dplyr::left_join(metadata %>% dplyr::distinct(celltype, tissue)) %>%
+      dplyr::transmute(
+        celltype,
+        tissue,
         # uniform distribution parameters
         N = dplyr::n_distinct(DHSs$DHS),
         n = dplyr::n_distinct(intersected_DHSs$DHS),
