@@ -41,7 +41,7 @@ predict_target_genes <- function(trait = NULL,
   args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; min_proportion_of_variants_in_top_H3K27ac = 0.05 ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # for internally restoring a previous run environment:
   # args <- dget("out/BC_Michailidou2017_FM/all_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
@@ -76,10 +76,11 @@ predict_target_genes <- function(trait = NULL,
     predictions_max = "target_gene_predictions_max.tsv",
     MA = "MA.rds",
     performance = "performance.tsv",
-    PR = "PrecisionRecall.pdf",
-    args = "arguments_for_predict_target_genes.R"
-  )
-  if (is.null(out_dir)) {
+    PR_plot = "precision_recall_plot.pdf",
+    args = "arguments_for_predict_target_genes.R",
+    XGBoost = "XGBoost_feature_importance.tsv",
+    XGBoost_plot = "XGBoost_feature_importance_plot.pdf"
+  ) ; if (is.null(out_dir)) {
     out <- "out/" %>%
       paste0(trait, "/", enriched_dir, "/") %>%
       { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
@@ -212,7 +213,7 @@ predict_target_genes <- function(trait = NULL,
   # get weights (ALL OTHERS = 0.33)
   annotations_metadata <- read_tibble("data/metadata.tsv", header = T)
   weights <- as.list(annotations_metadata$weight) %>% setNames(annotations_metadata$annotation)
-  if(setdiff(names(master), names(weights)) > 0){stop("Annotation ", setdiff(names(master), names(weights)), "does not have a weight in the annotations metadata!")}
+  if(length(setdiff(names(master), names(weights))) > 0){stop("Annotation ", setdiff(names(master), names(weights)), " does not have a weight in the annotations metadata!")}
 
   # weight and average
   means <- names(master) %>%
@@ -292,7 +293,7 @@ predict_target_genes <- function(trait = NULL,
     )
   ))
 
-  {pdf(out$PR, height = 10, width = 15, onefile = T)
+  {pdf(out$PR_plot, height = 10, width = 15, onefile = T)
     # PR score + max
     print(plot_PR(performance, colour = prediction_method) +
             title_plot)
@@ -370,9 +371,13 @@ predict_target_genes <- function(trait = NULL,
   xgb1_feature_importance_mat <- xgboost::xgb.importance(feature_names = colnames(dtrain), model = xgb1)
   xgb1_feature_importance_plot <- xgboost::xgb.ggplot.importance(importance_matrix = xgb1_feature_importance_mat)
   # save plot
-  pdf(paste0(out$base, "xgb_model_feature_importance.pdf"))
-  print(xgb1_feature_importance_plot)
-  dev.off()
+  {
+    pdf(out$XGBoost_plot, width = 15, height = 15)
+    print(xgb1_feature_importance_plot + title_plot)
+    dev.off()
+  }
+  # write table
+  write_tibble(xgb1_feature_importance_mat, filename = out$XGBoost)
   }
 
   cat("\nDONE!\n")

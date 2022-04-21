@@ -19,7 +19,9 @@ TGP is a package to predict the target genes of fine-mapped variants of a trait.
 ```
 
 ### Package data
-This package uses both reference genomic annotation datasets and user-provided trait-specific datasets. Some data that accompanies the package must be downloaded separately. The reference panels and example trait data are saved locally...
+This package uses both reference genomic annotation datasets and user-provided trait-specific datasets. Some data that accompanies the package must be downloaded separately. Genomic coordinates use the hg19 build. The package's BED handling follows UCSC's `bedtools` conventions, so it expects 0-based start positions and 1-based end positions.
+
+The reference panels and example trait data are saved locally...
 ```{bash reference directories}
 package_data_dir=/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/
 reference_panels_dir=$package_data_dir/reference_panels/output/
@@ -28,7 +30,7 @@ traits_dir=$package_data_dir/traits/output/
 
 #### Reference data
 ##### Internal reference data
-Smaller generic reference datasets, including chromosome sizes, GENCODE annotations and REVEL annotations (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`, `missense`, `nonsense`, `splicesite`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The reproducible code to generate these objects is in `data-raw/sysdata.R`. The raw data from which these objects are derived are in the reference panels data directory and the scripts to generate the output are in the reference panels code directory. 
+Smaller generic reference datasets, including chromosome sizes, GENCODE annotations and REVEL annotations (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`, `missense`, `nonsense`, `splicesite`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The raw data from which these objects are derived are in the reference panels data directory and the scripts to generate the output are in the reference panels code directory. 
 
 ##### External reference data
 Larger cell-type-specific reference panels are stored externally as local files in the reference panels output directory. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible scripts to generate these files are in the reference panels code directory.
@@ -37,7 +39,7 @@ list.files("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/referen
 ```
 
 #### User-provided data
-There is one required user-provided file for the `predict_target_genes()` function: a list of trait variants (the `variants_file` argument). A list of known genes for the trait (the `known_genes_file` argument) is needed only if `do_performance = T`. Example inputs can be found in the example traits directory for several traits.
+There is one required user-provided file for the `predict_target_genes()` function: the trait variants (the `variants_file` argument). Known genes for the trait (the `known_genes_file` argument) are needed only if `do_performance = T`. Example inputs can be found in the traits directory for several tested traits.
 ```{bash example traits, eval = T}
 (cd /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/ ; ls -d */)
 ```
@@ -49,7 +51,7 @@ head /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/
 ```
 
 ##### Trait known genes
-The known genes file should be a file with a single column of driver gene symbols. These symbols must be GENCODE-compatible.
+The known genes file should be a text file with a single column of known gene symbols. These symbols must be GENCODE-compatible.
 ```{bash known_genes_file structure, eval = T}
 head /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC_Michailidou2017_FM/known_genes.txt
 ```
