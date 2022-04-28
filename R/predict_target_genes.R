@@ -364,7 +364,8 @@ predict_target_genes <- function(trait = NULL,
   xgb1 <- xgboost::xgboost(data = dtrain,
                            max.depth = 5,
                            eta = 1,
-                           nrounds = 500,
+                           nthread = 1,
+                           nrounds = 100,
                            objective = "binary:logistic",
                            verbose = 1)
   # view feature importance plot
