@@ -43,7 +43,7 @@ predict_target_genes <- function(trait = NULL,
   # for testing internally:
   # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # for internally restoring a previous run environment:
-  # args <- dget("out/BC_Michailidou2017_FM/all_celltypes/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
+  # args <- dget("out/LC_McKay2017_LD/enriched_tissues/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
 
   # SETUP ======================================================================================================
 
@@ -102,7 +102,9 @@ predict_target_genes <- function(trait = NULL,
   cat(" > Importing variants...\n")
   variants <- import_BED(
     variants_file,
-    metadata_cols = c("variant", "cs"))
+    metadata_cols = c("variant", "cs")) %>%
+    dplyr::mutate(variant = as.character(variant),
+                  cs = as.character(variant))
 
   # import the HiChIP data
   if (is.null(HiChIP)) {
@@ -310,7 +312,8 @@ predict_target_genes <- function(trait = NULL,
     print(
       performance$summary %>%
         dplyr::filter(prediction_type == "max") %>%
-        dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .)) %>%
+        dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .),
+                      F_score = F_score %>% tidyr::replace_na(0)) %>%
         dplyr::distinct() %>%
         ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, F_score),
                                      y = F_score,
@@ -325,7 +328,8 @@ predict_target_genes <- function(trait = NULL,
     print(
       performance$summary %>%
         dplyr::left_join(weight_facets, by = "prediction_method") %>%
-        dplyr::mutate(fsc = F_score) %>%
+        dplyr::mutate(dplyr::across(where(is.numeric), tidyr::replace_na, 0),
+                      fsc = F_score) %>%
         tidyr::pivot_longer(cols = c(F_score, PR_AUC, Precision, Recall),
                             names_to = "metric",
                             values_to = "performance") %>%
