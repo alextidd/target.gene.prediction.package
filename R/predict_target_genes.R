@@ -104,7 +104,7 @@ predict_target_genes <- function(trait = NULL,
     variants_file,
     metadata_cols = c("variant", "cs")) %>%
     dplyr::mutate(variant = as.character(variant),
-                  cs = as.character(variant))
+                  cs = as.character(cs))
 
   # import the HiChIP data
   if (is.null(HiChIP)) {
