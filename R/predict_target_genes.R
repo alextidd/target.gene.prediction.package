@@ -3,7 +3,8 @@
 #' The master, user-facing function of this package.
 #'
 #' @param trait Optional. The name of the trait of interest.
-#' @param out_dir The output directory in which to save the predictions. Default is "./out/{trait}/{celltypes}/".
+#' @param out_dir Optional. The output directory in which to save the predictions. Default is "./out/{trait}/{celltypes}/".
+#' @param sub_dir Optional. The output subdirectory to be appended to the default path ("./out/{trait}/{celltypes}/{sub_dir}/").
 #' @param variants_file A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
 #' @param known_genes_file Optional. The file containing a list of trait known gene symbols. If do_performance is TRUE, must provide a known_genes_file.
 #' @param reference_panels_dir The directory containing the external, accompanying reference panels data.
@@ -22,6 +23,7 @@
 #' @export
 predict_target_genes <- function(trait = NULL,
                                  out_dir = NULL,
+                                 sub_dir = NULL,
                                  variants_file = NULL,
                                  known_genes_file = NULL,
                                  reference_panels_dir = NULL,
@@ -41,9 +43,9 @@ predict_target_genes <- function(trait = NULL,
   args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; sub_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # for internally restoring a previous run environment:
-  # args <- dget("out/LC_McKay2017_LD/enriched_tissues/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv)
+  # args <- dget("out/BC_Michailidou2017_FM/enriched_tissues/20220503_100027/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv) ; library(devtools) ; load_all()
 
   # SETUP ======================================================================================================
 
@@ -71,10 +73,10 @@ predict_target_genes <- function(trait = NULL,
   out <- list(
     base = "",
     tissue_enrichments = "tissue_enrichments.tsv",
+    master = "master.rds",
     annotations = "target_gene_annotations.tsv",
     predictions_full = "target_gene_predictions_full.tsv",
     predictions_max = "target_gene_predictions_max.tsv",
-    MA = "MA.rds",
     performance = "performance.tsv",
     PR_plot = "precision_recall_plot.pdf",
     args = "arguments_for_predict_target_genes.R",
@@ -84,6 +86,7 @@ predict_target_genes <- function(trait = NULL,
     out <- "out/" %>%
       paste0(trait, "/", enriched_dir, "/") %>%
       { if(do_timestamp) paste0(., format(Sys.time(), "%Y%m%d_%H%M%S"), "/") else . } %>%
+      { if(!is.null(sub_dir)) paste0(., sub_dir, "/") else . } %>%
       { purrr::map(out, function(x) paste0(., x)) }
   } else { out <- out %>% purrr::map(function(x) paste0(out_dir, "/", x)) }
   dir.create(out$base, showWarnings = F, recursive = T)
@@ -125,6 +128,7 @@ predict_target_genes <- function(trait = NULL,
   expressed <- readRDS(paste0(reference_panels_dir, "expression/expressed.rds"))
 
   # import DHSs master
+  cat(" > Importing DHS data...\n")
   DHSs <- readRDS(paste0(reference_panels_dir, "DHSs/DHSs.rds"))
 
   # import the TADs data

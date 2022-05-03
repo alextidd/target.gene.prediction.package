@@ -56,7 +56,7 @@ get_enriched <- function(variants,
       dplyr::summarise(dplyr::across(.cols = where(is.numeric),
                                      .fns = ~ mean(.x))) %>%
       tidyr::pivot_longer(everything(), names_to = "celltype", values_to = "obs_mean_rank") %>%
-      dplyr::left_join(metadata %>% dplyr::distinct(celltype, tissue)) %>%
+      dplyr::left_join(metadata %>% dplyr::distinct(celltype, tissue), by = "celltype") %>%
       dplyr::transmute(
         celltype,
         tissue,
