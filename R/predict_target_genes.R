@@ -212,6 +212,9 @@ predict_target_genes <- function(trait = NULL,
   master <- c(v, t, g, c, vxt, vxg, cxt, cxg) %>%
     purrr::map(~ matricise_by_pair(., vxt_master))
 
+  # save the master
+  saveRDS(master, out$master)
+
   # 5) SCORING ======================================================================================================
   if(do_scoring){
   cat("5) Scoring enhancer-gene pairs...\n")
