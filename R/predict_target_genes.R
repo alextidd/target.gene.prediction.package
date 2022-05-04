@@ -203,12 +203,11 @@ predict_target_genes <- function(trait = NULL,
   cat("  > CxG\tAnnotating credible set x gene pairs...\n")
   cxg <- get_cxg_level_annotations(vxt_master)
 
-  # 4) ALL INPUTS ======================================================================================================
-  # Master variant-x-transcript matrix list
-  # -> wide-format (one row per cs:variant|transcript pair, one column per celltype)
+  # 4) ALL ANNOTATIONS ======================================================================================================
+  # Master list of variant-x-transcript annotations
+  # -> wide-format (one row per vxt pair, one column per celltype if ct-specific)
   # -> only variant-transcript combinations within 2Mb are included
-  # -> pair ID rownames: variant|enst
-  # Each annotation will be aggregated across samples, taking the maximum value per pair
+  # -> rows match vxt_master
   cat("4) Generating master table of transcript x", trait, "variant pairs, with all annotation levels...\n")
   master <- c(v, t, g, c, vxt, vxg, cxt, cxg) %>%
     purrr::map(~ matricise_by_pair(., vxt_master))
@@ -221,23 +220,37 @@ predict_target_genes <- function(trait = NULL,
   weights <- as.list(annotations_metadata$weight) %>% setNames(annotations_metadata$annotation)
   if(length(setdiff(names(master), names(weights))) > 0){stop("Annotation ", setdiff(names(master), names(weights)), " does not have a weight in the annotations metadata!")}
 
-  # raw annotations (summarised across celltypes by mean or max)
+  # raw annotations (summarised across celltypes by mean (or max if sub_dir == "maximum_annot"))
   raw <- master %>% sapply(rowMeans)
   if(!is.null(sub_dir)){if(sub_dir == "maximum_annot"){
     raw <- master %>% sapply(function(a){
       if(ncol(a) > 1) {apply(a, 1, max)} else {a[,1]}
       })
   }}
+
   # weighted annotations
   weighted <- colnames(raw) %>%
     sapply(function(annotation){raw[,annotation] * weights [[annotation]]})
-  # all raw vxt annotations + scores (mean and weight raw annotations)
+
+  # generating a score at cxg level from the maximum values of each annotation for each pair
+  # this is to see if taking the best piece of evidence for each cxg pair and combining them is best
+  score_cxg_max_annotations <- cbind(vxt_master %>% dplyr::select(cs, variant, symbol, ensg, enst),
+        weighted) %>%
+    dplyr::as_tibble() %>%
+    dplyr::group_by(cs, symbol) %>%
+    dplyr::summarise(dplyr::across(colnames(weighted), max),
+                     .groups = "rowwise") %>%
+    dplyr::summarise(score_cxg_max_annotations = mean(dplyr::c_across(colnames(weighted))),
+                     .groups = "drop") %>%
+    {dplyr::left_join(vxt_master, .)} %>%
+    dplyr::select(score_cxg_max_annotations)
+
+  # all raw vxt annotations + scores (raw %>% weight %>% mean -> score)
   annotations <- cbind(
-    vxt_master %>% dplyr::select(cs, variant,
-                                 chrom, start = start.variant, end = end.variant,
-                                 symbol, ensg, enst),
+    vxt_master %>% dplyr::select(cs, variant, symbol, ensg, enst),
     score = rowMeans(weighted),
     score_expressed = rowMeans(weighted) * raw[, "g_expressed"],
+    score_cxg_max_annotations,
     raw) %>%
     dplyr::as_tibble() %>%
     dplyr::arrange(-score)
