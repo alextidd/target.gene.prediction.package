@@ -30,11 +30,12 @@ get_vxg_level_annotations <- function(variants,
     variants %>%
       dplyr::inner_join(revel_df, by = c("chrom" = "chrom", "end" = "position")) %>%
       tidyr::separate_rows(ensgs) %>%
-      dplyr::transmute(cs, variant, ensg = ensgs, ...)
+      dplyr::filter(...) %>%
+      dplyr::transmute(cs, variant, ensg = ensgs)
   }
 
   # missense variants
-  vxg$missense <- variants %>% intersect_REVEL(missense, value = score)
+  vxg$missense <- variants %>% intersect_REVEL(missense, score > 0.5)
 
   # nonsense variants
   vxg$nonsense <- variants %>% intersect_REVEL(nonsense)

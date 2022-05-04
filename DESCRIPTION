@@ -25,7 +25,6 @@ Imports:
     yardstick,
     xgboost,
     Ckmeans.1d.dp,
-    MultiAssayExperiment,
     ggsci,
     ggrepel
 Depends:

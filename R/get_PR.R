@@ -1,4 +1,4 @@
-get_PR <- function(scores, vxt_master, known_genes, pcENSGs, max_n_known_genes_per_CS){
+get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_genes_per_CS){
 
   performance <- list()
 
@@ -13,7 +13,7 @@ get_PR <- function(scores, vxt_master, known_genes, pcENSGs, max_n_known_genes_p
     dplyr::distinct(cs, symbol, known_gene)
 
   # score, max
-  pred <- scores %>%
+  pred <- annotations %>%
     dplyr::select(-dplyr::any_of(c("chrom", "start", "end"))) %>%
     dplyr::right_join(testable, by = c("cs", "symbol")) %>%
     dplyr::group_by(cs, symbol, known_gene) %>%
@@ -82,7 +82,7 @@ get_PR <- function(scores, vxt_master, known_genes, pcENSGs, max_n_known_genes_p
                   F_score = (Precision * Recall) / (Precision + Recall)) %>%
     dplyr::ungroup() %>%
     # add area under curve metric to summary
-    dplyr::left_join(performance$PR %>%
+    dplyr::full_join(performance$PR %>%
                        dplyr::distinct(prediction_method,
                                        prediction_type,
                                        PR_AUC),

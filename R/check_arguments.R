@@ -5,7 +5,6 @@ check_arguments <- function(metadata,
                             celltype_of_interest,
                             tissue_of_interest,
                             celltypes,
-                            do_scoring,
                             do_performance,
                             do_XGBoost){
 
@@ -30,7 +29,5 @@ check_arguments <- function(metadata,
       stop("Provided tissue_of_interest '", tissue_of_interest, "' is not represented in the available data. Must be one of...\n", paste(unique(metadata$tissue), collapse = ", ")) } }
   if (celltypes %ni% c("all_celltypes", "enriched_tissues", "enriched_celltypes")) {
     stop("Provided celltypes argument '", celltypes, "' is not acceptable. Must be one of...\nall_celltypes, enriched_tissues, enriched_celltypes") }
-  if (do_XGBoost & !do_scoring) {
-    stop("`do_XGBoost = T` but `do_scoring = F`. Scoring must be performed in order to run XGBoost. Run again with both set to TRUE or both set to FALSE") }
 
 }
