@@ -15,24 +15,23 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
   # score, max
   pred <- annotations %>%
     dplyr::select(-dplyr::any_of(c("chrom", "start", "end"))) %>%
+    # get testable pairs
     dplyr::right_join(testable, by = c("cs", "symbol")) %>%
-    # dplyr::group_by(cs, symbol, known_gene) %>%
-    # # get maximum score per CS-x-gene-x-method
-    # dplyr::summarise(
-    #   dplyr::across(where(is.numeric), ~ max(.x))
-    # ) %>%
     # gather prediction methods
     tidyr::pivot_longer(
       where(is.numeric),
       names_to = "prediction_method",
       values_to = "score"
     ) %>%
-    # max prediction
+    # get maximum score per cxg-x-method
+    dplyr::group_by(prediction_method, cs, symbol, known_gene) %>%
+    dplyr::summarise(score = max(score)) %>%
+    # get maximum score per c-x-method
     dplyr::group_by(prediction_method, cs) %>%
     dplyr::mutate(max = as.numeric(score == max(score) & score > 0)) %>%
     # gather prediction types
     tidyr::pivot_longer(
-      c(score, max), #, max_score
+      c(score, max),
       names_to = "prediction_type",
       values_to = "prediction"
     ) %>%
@@ -55,6 +54,7 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
     dplyr::filter(prediction_type == "score") %>%
     yardstick::pr_auc(known_gene, prediction) %>%
     dplyr::select(prediction_method,
+                  prediction_type,
                   score_PR_AUC = .estimate) %>%
     dplyr::ungroup()
 
@@ -63,7 +63,7 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
     # max only (score is not binary, cannot be summarised)
     dplyr::filter(prediction_type == "max") %>%
     dplyr::mutate(prediction = as.logical(prediction)) %>%
-    dplyr::group_by(prediction_method) %>%
+    dplyr::group_by(prediction_method, prediction_type) %>%
     # max - confusion matrix
     dplyr::group_modify(
       ~ data.frame(True = .x %>% condition_n_gene_x_cs_pairs(known_gene),
@@ -84,8 +84,20 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
                   Specificity = TN / (TN + FP),
                   F_score = 2 * ((Precision * Recall) / (Precision + Recall))) %>%
     # score - PR_AUC
-    dplyr::left_join(performance$PR_AUC, by = "prediction_method") %>%
+    dplyr::left_join(performance$PR_AUC %>%
+                       dplyr::select(prediction_method, score_PR_AUC),
+                     by = "prediction_method") %>%
     dplyr::ungroup()
+
+  # arrange methods by F score
+  performance <- performance %>%
+    purrr::map(
+      ~ dplyr::left_join(
+        performance$summary %>%
+          dplyr::arrange(desc(F_score)) %>%
+          dplyr::select(prediction_method),
+        .x)
+    )
 
   return(performance)
 

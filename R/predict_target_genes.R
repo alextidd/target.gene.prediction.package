@@ -8,6 +8,7 @@
 #' @param variants_file A BED file of trait-associated variants grouped by association signal, for example SNPs correlated with an index variant, or credible sets of fine-mapped variants
 #' @param known_genes_file Optional. The file containing a list of trait known gene symbols. If do_performance is TRUE, must provide a known_genes_file.
 #' @param reference_panels_dir The directory containing the external, accompanying reference panels data.
+#' @param weights_file A file of weights for annotations. Must contain `annotation` and `weight` columns. Default is data/weights.tsv.
 #' @param celltype_of_interest Optional. The celltype(s) of interest for the trait. Only annotations in these celltypes will be used to make predictions. Argument(s) must match the names of celltypes in the metadata. Make sure the celltype of interest has coverage across all annotations (TADs, HiChIP, expression, H3K27ac) in the metadata table.
 #' @param tissue_of_interest Optional. The tissue(s) of interest for the trait. Only annotations in these tissues will be used to make predictions.  Argument(s) must match the names of tissues in the metadata.
 #' @param variant_to_gene_max_distance The maximum absolute distance (bp) across which variant-gene pairs are considered. Measured as the distance between the variant and the gene's TSS. Default is 2Mb. The HiChIP data is also already filtered to 2Mb.
@@ -26,7 +27,7 @@ predict_target_genes <- function(trait = NULL,
                                  variants_file = NULL,
                                  known_genes_file = NULL,
                                  reference_panels_dir = NULL,
-                                 weights_file = "data/metadata.tsv",
+                                 weights_file = "data/weights.tsv",
                                  celltype_of_interest = NULL,
                                  tissue_of_interest = NULL,
                                  celltypes = "enriched_tissues",
@@ -44,7 +45,7 @@ predict_target_genes <- function(trait = NULL,
   args["H3K27ac"] <- list(NULL)
 
   # for testing internally:
-  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; sub_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
+  # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; weights_file = "data/weights.tsv" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; sub_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # for internally restoring a previous run environment:
   # args <- dget("out/BC_Michailidou2017_FM/enriched_tissues/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv) ; library(devtools) ; load_all()
 
@@ -217,10 +218,6 @@ predict_target_genes <- function(trait = NULL,
   # 5) SCORING ======================================================================================================
   cat("5) Scoring variant-gene pairs...\n")
 
-  # get weights
-  weights <- as.list(annotations_metadata$weight) %>% setNames(annotations_metadata$annotation)
-  if(length(setdiff(names(master), names(weights))) > 0){stop("Annotation ", setdiff(names(master), names(weights)), " does not have a weight in the annotations metadata!")}
-
   # raw annotations (summarised across celltypes by mean (or max if sub_dir == "maximum_annot"))
   raw <- master %>% sapply(rowMeans)
   if(!is.null(sub_dir)){if(sub_dir == "maximum_annot"){
@@ -230,20 +227,25 @@ predict_target_genes <- function(trait = NULL,
   }}
 
   # weighted annotations
-  weighted <- colnames(raw) %>%
-    sapply(function(annotation){raw[,annotation] * weights [[annotation]]})
+  weights <- read_tibble(weights_file, header = T) %>%
+    dplyr::select(annotation, weight) %>%
+    tibble::column_to_rownames("annotation") %>%
+    as.matrix
+  if(length(setdiff(names(master), rownames(weights))) > 0){stop("Annotation ", setdiff(names(master), names(weights)), " does not have a weight in the annotations metadata!")}
+  weighted <- raw * weights[,1][match(colnames(raw), rownames(weights))]
 
   # generating a score at cxg level from the maximum values of each annotation for each pair
   # this is to see if taking the best piece of evidence for each cxg pair and combining them is best
-  score_cxg_max_annotations <- cbind(vxt_master %>% dplyr::select(cs, variant, symbol, ensg, enst),
-        weighted) %>%
+  score_cxg_max_annotations <- cbind(
+      vxt_master %>% dplyr::select(cs, variant, symbol, ensg, enst),
+      weighted) %>%
     dplyr::as_tibble() %>%
     dplyr::group_by(cs, symbol) %>%
     dplyr::summarise(dplyr::across(colnames(weighted), max),
                      .groups = "rowwise") %>%
     dplyr::summarise(score_cxg_max_annotations = mean(dplyr::c_across(colnames(weighted))),
                      .groups = "drop") %>%
-    {dplyr::left_join(vxt_master, .)} %>%
+    {dplyr::left_join(vxt_master, ., by = c("cs", "symbol"))} %>%
     dplyr::select(score_cxg_max_annotations)
 
   # all raw vxt annotations + scores (raw %>% weight %>% mean -> score)
@@ -298,17 +300,15 @@ predict_target_genes <- function(trait = NULL,
     purrr::map(~ dplyr::mutate(., level = sub("_.*", "", prediction_method)))
 
   # plot extras
-  weight_facets <- dplyr::left_join(
-    performance$summary %>% dplyr::select(prediction_method),
-      dplyr::tibble(prediction_method = names(weights),
-                    weight = unlist(weights)),
-    by = "prediction_method") %>%
+  weight_facets <- dplyr::tibble(prediction_method = unique(performance$summary$prediction_method)) %>%
+    dplyr::full_join(weights %>% dplyr::as_tibble(rownames = "prediction_method"),
+                     by = "prediction_method") %>%
     dplyr::mutate(
       weight = factor(dplyr::case_when(
         grepl("^score", prediction_method) ~ "score",
-        is.na(weight) ~ "0.33",
         TRUE ~ as.character(weight)),
-        levels = c("score", "1", "0.66", "0.33")))
+        levels = c("score",
+                   weights[,"weight"] %>% unique %>% sort(T) %>% as.character)))
 
   title_plot <- list(ggplot2::labs(
     title = paste0(
@@ -336,6 +336,7 @@ predict_target_genes <- function(trait = NULL,
             plot_PR(colour = prediction_method) +
             title_plot)
 
+    # PR score + max facets
     print(performance %>%
       plot_PR() +
       ggplot2::facet_wrap(~prediction_method) +
@@ -346,7 +347,7 @@ predict_target_genes <- function(trait = NULL,
     # PR max
     print(
       performance %>%
-        purrr::map(~ .x %>% dplyr::filter(prediction_type == "max")) %>%
+        purrr::map(dplyr::filter, prediction_type == "max") %>%
         plot_PR(colour = prediction_method) +
         ggrepel::geom_text_repel(min.segment.length = 0, max.overlaps = Inf) +
         title_plot
@@ -354,7 +355,6 @@ predict_target_genes <- function(trait = NULL,
     # F score max
     print(
       performance$summary %>%
-        dplyr::filter(prediction_type == "max") %>%
         dplyr::mutate(level = prediction_method %>% gsub("_.*", "", .),
                       F_score = F_score %>% tidyr::replace_na(0)) %>%
         dplyr::distinct() %>%
@@ -368,12 +368,14 @@ predict_target_genes <- function(trait = NULL,
         ggplot2::coord_flip() +
         title_plot
     )
+
+    # performance metrics
     print(
       performance$summary %>%
         dplyr::left_join(weight_facets, by = "prediction_method") %>%
         dplyr::mutate(dplyr::across(where(is.numeric), tidyr::replace_na, 0),
                       fsc = F_score) %>%
-        tidyr::pivot_longer(cols = c(F_score, PR_AUC, Precision, Recall),
+        tidyr::pivot_longer(cols = c(F_score, score_PR_AUC, Precision, Recall),
                             names_to = "metric",
                             values_to = "performance") %>%
         ggplot2::ggplot(ggplot2::aes(x = reorder(prediction_method, fsc),

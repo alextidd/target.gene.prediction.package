@@ -8,7 +8,6 @@ REVELPath <- paste0(reference_panels_dir, "/output/REVEL/")
 # manually copied from
 # https://docs.google.com/spreadsheets/d/1De71B8qUdNge9jrH65GvryX6eYYHgdHy707HtDxyU2k/edit#gid=1075783341
 # > data/metadata.tsv
-annotations_metadata <- read_tibble("data/metadata.tsv", header = T)
 
 # GENCODE
 pcENSGs <- read_tibble(paste0(GENCODEPath, "proteincoding.gencode.v34lift37.basic.ENSGs.txt"))$V1
@@ -26,8 +25,7 @@ missense <- paste0(REVELPath, "missense.tsv") %>% read_tibble(header = T)
 nonsense <- paste0(REVELPath, "nonsense.tsv") %>% read_tibble(header = T)
 splicesite <- paste0(REVELPath, "splicesite.tsv") %>% read_tibble(header = T)
 
-usethis::use_data(annotations_metadata,
-                  pcENSGs,
+usethis::use_data(pcENSGs,
                   TSSs,
                   promoters,
                   introns,
