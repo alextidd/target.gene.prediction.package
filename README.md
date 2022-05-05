@@ -3,7 +3,8 @@ TGP Tour
 Alexandra Tidd
 October 28, 2021
 
-## predict\_target\_genes()
+predict\_target\_genes()
+------------------------
 
 TGP is a package to predict the target genes of fine-mapped variants of a trait.
 
@@ -31,6 +32,8 @@ traits_dir=$package_data_dir/traits/output/
 
 Smaller generic reference datasets, including chromosome sizes, GENCODE annotations and REVEL annotations (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`, `missense`, `nonsense`, `splicesite`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The raw data from which these objects are derived are in the reference panels data directory and the scripts to generate the output are in the reference panels code directory.
 
+The weightings of annotations used to generate pair scores are stored as a TSV file in data/weights.tsv.
+
 ##### External reference data
 
 Larger cell-type-specific reference panels are stored externally as local files in the reference panels output directory. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible scripts to generate these files are in the reference panels code directory.
@@ -39,8 +42,8 @@ Larger cell-type-specific reference panels are stored externally as local files 
 list.files("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/")
 ```
 
-    ## [1] "DHSs"         "expression"   "GENCODE"      "H3K27ac"      "HiChIP"      
-    ## [6] "metadata.tsv" "REVEL"        "TADs"
+    ## [1] "DHSs"         "expression"   "GENCODE"      "H3K27ac"     
+    ## [5] "HiChIP"       "metadata.tsv" "REVEL"        "TADs"
 
 #### User-provided data
 
@@ -50,20 +53,21 @@ There is one required user-provided file for the `predict_target_genes()` functi
 (cd /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/ ; ls -d */)
 ```
 
+    ## BC_cS2GxMichailidou2017_assoc/
+    ## BC_L2GxMichailidou2017_FM/
     ## BC_Michailidou2017_FM/
-    ## BC_Michailidou2017_LD/
     ## BloodCancer_Law2017andWent2018_LD/
     ## CRC_Law2019_LD/
     ## EC_Wang2022_LD/
     ## EOC_Jones2020_FM/
     ## IBD_Huang2017_FM/
     ## IBD_Huang2017_LD/
+    ## LC_McKay2017_LD/
     ## Lymphoma_Sud2018_LD/
-    ## PrCa_Dadaev2018_FM/
-    ## PrCa_Giambartolomei2021_FM/
-    ## PrCa_Giambartolomei2021_LD/
-    ## PrCa_GWASCatalog_LD/
-    ## PrCa_Schumacher2018_LD/
+    ## old/
+    ## PrCa_Benafif2018_LD/
+    ## PrCa_cS2GxSchumacher2018_assoc/
+    ## PrCa_L2GxSchumacher2018_FM/
 
 ##### Trait variants
 
@@ -73,15 +77,15 @@ The variants file should be a BED file with metadata columns for the variant nam
 head /working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/BC_Michailidou2017_FM/variants.bed
 ```
 
-    ## chr1 10551762    10551763    rs657244:10551763:A:G   BCAC_FM_1.1
-    ## chr1 10563363    10563364    rs202087283:10563364:G:A    BCAC_FM_1.1
-    ## chr1 10564674    10564675    chr1_10564675_A_G   BCAC_FM_1.1
-    ## chr1 10566521    10566522    rs617728:10566522:C:T   BCAC_FM_1.1
-    ## chr1 10569000    10569000    rs60354536:10569000:C:CT    BCAC_FM_1.1
-    ## chr1 10569257    10569258    rs2480785:10569258:G:A  BCAC_FM_1.1
-    ## chr1 10579544    10579545    rs1411402:10579545:G:T  BCAC_FM_1.1
-    ## chr1 10580890    10580891    chr1_10580891_C_T   BCAC_FM_1.1
-    ## chr1 10581050    10581051    rs2506885:10581051:A:T  BCAC_FM_1.1
+    ## chr1 10551762    10551763    rs657244    BCAC_FM_1.1
+    ## chr1 10563363    10563364    rs202087283 BCAC_FM_1.1
+    ## chr1 10564674    10564675    rs2847344   BCAC_FM_1.1
+    ## chr1 10566521    10566522    rs617728    BCAC_FM_1.1
+    ## chr1 10569000    10569000    rs60354536  BCAC_FM_1.1
+    ## chr1 10569257    10569258    rs2480785   BCAC_FM_1.1
+    ## chr1 10579544    10579545    rs1411402   BCAC_FM_1.1
+    ## chr1 10580890    10580891    rs2483677   BCAC_FM_1.1
+    ## chr1 10581050    10581051    rs2506885   BCAC_FM_1.1
     ## chr1 10581657    10581658    rs2056417   BCAC_FM_1.1
 
 ##### Trait known genes
@@ -137,7 +141,8 @@ MA <- predict_target_genes(
   )
 ```
 
-## Interactive development
+Interactive development
+-----------------------
 
 To simulate installing and loading the package during interactive development...
 

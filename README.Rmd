@@ -32,6 +32,8 @@ traits_dir=$package_data_dir/traits/output/
 ##### Internal reference data
 Smaller generic reference datasets, including chromosome sizes, GENCODE annotations and REVEL annotations (`ChrSizes`, `TSSs`, `exons`, `introns`, `promoters`, `missense`, `nonsense`, `splicesite`) are stored internally as parsed objects in `R/sysdata.R`. They are accessible when the package is loaded, but not visible due to lazy loading. The raw data from which these objects are derived are in the reference panels data directory and the scripts to generate the output are in the reference panels code directory. 
 
+The weightings of annotations used to generate pair scores are stored as a TSV file in data/weights.tsv.
+
 ##### External reference data
 Larger cell-type-specific reference panels are stored externally as local files in the reference panels output directory. These are too large to upload to GitHub and would make the package too bulky, so they will be published in a directory to be downloaded alongside the package. The reproducible scripts to generate these files are in the reference panels code directory.
 ```{r local reference panels directory, eval = T}
