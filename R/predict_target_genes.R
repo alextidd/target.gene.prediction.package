@@ -337,12 +337,25 @@ predict_target_genes <- function(trait = NULL,
             title_plot)
 
     # PR score + max facets
-    print(performance %>%
-      plot_PR() +
-      ggplot2::facet_wrap(~prediction_method) +
-      ggplot2::theme_bw() +
-      ggplot2::theme(axis.ticks = ggplot2::element_blank(),
-                     axis.text = ggplot2::element_blank()))
+    print(
+      performance %>%
+        purrr::map(
+          ~ .x %>%
+            dplyr::mutate(
+              prediction_method = factor(
+                prediction_method,
+                levels = dplyr::arrange(performance$summary, desc(score_PR_AUC))$prediction_method))) %>%
+        plot_PR() +
+        ggplot2::facet_wrap(. ~ prediction_method) +
+        ggplot2::geom_text(data = performance$summary %>%
+                             dplyr::transmute(prediction_method,
+                                              label = round(score_PR_AUC, 3),
+                           mapping = ggplot2::aes(x = -Inf, y = Inf, label = score_PR_AUC),
+                           hjust = 0, vjust = 1, size = 5) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(axis.ticks = ggplot2::element_blank(),
+                       axis.text = ggplot2::element_blank())
+    )
 
     # PR max
     print(
