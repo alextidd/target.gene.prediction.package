@@ -17,6 +17,8 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
     dplyr::select(-dplyr::any_of(c("chrom", "start", "end"))) %>%
     # get testable pairs
     dplyr::right_join(testable, by = c("cs", "symbol")) %>%
+    # get maximum score per cxg-x-method
+    dplyr::group_by(cs, symbol, known_gene) %>%
     # gather prediction methods
     tidyr::pivot_longer(
       where(is.numeric),

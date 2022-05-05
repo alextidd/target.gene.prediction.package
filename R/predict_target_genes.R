@@ -232,7 +232,7 @@ predict_target_genes <- function(trait = NULL,
     tibble::column_to_rownames("annotation") %>%
     as.matrix
   if(length(setdiff(names(master), rownames(weights))) > 0){stop("Annotation ", setdiff(names(master), names(weights)), " does not have a weight in the annotations metadata!")}
-  weighted <- raw * weights[,1][match(colnames(raw), rownames(weights))]
+  weighted <- raw * weights[,1][match(colnames(raw), rownames(weights))][col(raw)]
 
   # generating a score at cxg level from the maximum values of each annotation for each pair
   # this is to see if taking the best piece of evidence for each cxg pair and combining them is best
