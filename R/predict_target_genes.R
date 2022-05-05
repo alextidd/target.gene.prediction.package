@@ -26,6 +26,7 @@ predict_target_genes <- function(trait = NULL,
                                  variants_file = NULL,
                                  known_genes_file = NULL,
                                  reference_panels_dir = NULL,
+                                 weights_file = "data/metadata.tsv",
                                  celltype_of_interest = NULL,
                                  tissue_of_interest = NULL,
                                  celltypes = "enriched_tissues",
@@ -39,13 +40,13 @@ predict_target_genes <- function(trait = NULL,
 
   # capture function arguments (do not run when testing internally)
   args <- as.list(environment())[names(as.list(environment())) %ni% c("HiChIP", "H3K27ac")]
-  args$HiChIP <- NULL
-  args$H3K27ac <- NULL
+  args["HiChIP"] <- list(NULL)
+  args["H3K27ac"] <- list(NULL)
 
   # for testing internally:
   # setwd("/working/lab_jonathb/alexandT/tgp") ; trait="BC_Michailidou2017_FM" ; celltypes = "enriched_tissues" ; variants_file=paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/variants.bed") ; known_genes_file = paste0("/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/traits/output/",trait,"/known_genes.txt") ; reference_panels_dir = "/working/lab_jonathb/alexandT/tgp_paper/wrangle_package_data/reference_panels/output/" ; variant_to_gene_max_distance = 2e6 ; max_n_known_genes_per_CS = Inf ; HiChIP = NULL ; H3K27ac = NULL ; celltype_of_interest = NULL ; tissue_of_interest = NULL ; out_dir = NULL ; sub_dir = NULL ; do_scoring = T ; do_performance = T ; do_XGBoost = T ; do_timestamp = F  ; library(devtools) ; load_all()
   # for internally restoring a previous run environment:
-  # args <- dget("out/BC_Michailidou2017_FM/enriched_tissues/maximum_annot/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv) ; library(devtools) ; load_all()
+  # args <- dget("out/BC_Michailidou2017_FM/enriched_tissues/arguments_for_predict_target_genes.R") ; list2env(args, envir=.GlobalEnv) ; library(devtools) ; load_all()
 
   # SETUP ======================================================================================================
 
@@ -72,7 +73,8 @@ predict_target_genes <- function(trait = NULL,
   out <- list(
     base = "",
     tissue_enrichments = "tissue_enrichments.tsv",
-    master = "master.rds",
+    annotations.rds = "target_gene_annotations.rds",
+    annotations_pc.rds = "target_gene_annotations_proteincoding.rds",
     annotations = "target_gene_annotations.tsv",
     predictions_full = "target_gene_predictions_full.tsv",
     predictions_max = "target_gene_predictions_max.tsv",
@@ -90,7 +92,7 @@ predict_target_genes <- function(trait = NULL,
       { purrr::map(out, function(x) paste0(., x)) }
   } else { out <- out %>% purrr::map(function(x) paste0(out_dir, "/", x)) }
   dir.create(out$base, showWarnings = F, recursive = T)
-  cat("Outputs will be saved to", out$base, "\n")
+  cat("Output will be saved to", out$base, "\n")
 
   # write run arguments to output
   dput(args, file = out$args)
@@ -154,7 +156,7 @@ predict_target_genes <- function(trait = NULL,
                            celltypes)
 
   # 2) VARIANTS ======================================================================================================
-  # get variant-to-gene universe ('enhancer variants')
+  # get variant-to-gene universe
   cat("2) Finding all genes near variants...\n")
 
   # The transcript-x-variant universe (masterlist of all possible transcript x variant pairs < variant_to_gene_max_distance apart)
@@ -213,10 +215,9 @@ predict_target_genes <- function(trait = NULL,
     purrr::map(~ matricise_by_pair(., vxt_master))
 
   # 5) SCORING ======================================================================================================
-  cat("5) Scoring enhancer-gene pairs...\n")
+  cat("5) Scoring variant-gene pairs...\n")
 
   # get weights
-  annotations_metadata <- read_tibble("data/metadata.tsv", header = T)
   weights <- as.list(annotations_metadata$weight) %>% setNames(annotations_metadata$annotation)
   if(length(setdiff(names(master), names(weights))) > 0){stop("Annotation ", setdiff(names(master), names(weights)), " does not have a weight in the annotations metadata!")}
 
@@ -273,8 +274,8 @@ predict_target_genes <- function(trait = NULL,
     dplyr::filter(score == max(score) & score > 0)
 
   # write tables
-  saveRDS(annotations, paste0(out$base, "annotations.rds"))
-  saveRDS(annotations_pc, paste0(out$base, "annotations_pc.rds"))
+  saveRDS(annotations, out$annotations.rds)
+  saveRDS(annotations_pc, out$annotations_pc.rds)
   write_tibble(annotations, filename = out$annotations)
   write_tibble(predictions_full, filename = out$predictions_full)
   write_tibble(predictions_max, filename = out$predictions_max)
@@ -285,7 +286,7 @@ predict_target_genes <- function(trait = NULL,
   cat("6) Measuring tgp performance...\n")
 
   # import user-provided known genes and check that all symbols are in the GENCODE database
-  cat(" > Importing known genes...\n")
+  cat("  > Importing known genes...\n")
   known_genes <- read_tibble(known_genes_file)$V1 %>%
     check_known_genes(known_genes_file)
 
@@ -335,12 +336,12 @@ predict_target_genes <- function(trait = NULL,
             plot_PR(colour = prediction_method) +
             title_plot)
 
-    performance %>%
+    print(performance %>%
       plot_PR() +
       ggplot2::facet_wrap(~prediction_method) +
       ggplot2::theme_bw() +
       ggplot2::theme(axis.ticks = ggplot2::element_blank(),
-                     axis.text = ggplot2::element_blank())
+                     axis.text = ggplot2::element_blank()))
 
     # PR max
     print(

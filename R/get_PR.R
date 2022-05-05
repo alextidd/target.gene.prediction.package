@@ -16,11 +16,11 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
   pred <- annotations %>%
     dplyr::select(-dplyr::any_of(c("chrom", "start", "end"))) %>%
     dplyr::right_join(testable, by = c("cs", "symbol")) %>%
-    dplyr::group_by(cs, symbol, known_gene) %>%
-    # get maximum score per CS-x-gene-x-method
-    dplyr::summarise(
-      dplyr::across(where(is.numeric), ~ max(.x))
-    ) %>%
+    # dplyr::group_by(cs, symbol, known_gene) %>%
+    # # get maximum score per CS-x-gene-x-method
+    # dplyr::summarise(
+    #   dplyr::across(where(is.numeric), ~ max(.x))
+    # ) %>%
     # gather prediction methods
     tidyr::pivot_longer(
       where(is.numeric),
@@ -45,24 +45,26 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
     # refactor known gene predictions for PR function
     dplyr::mutate(known_gene = ifelse(known_gene, "positive", "negative") %>% factor(c("positive", "negative")))
 
+  # calculate PR curve
   performance$PR <- PR_in %>%
-    # calculate PR curve
     yardstick::pr_curve(known_gene, prediction) %>%
-    dplyr::left_join(PR_in %>%
-                       # calculate AUPRC
-                       yardstick::pr_auc(known_gene, prediction) %>%
-                       dplyr::select(prediction_method,
-                                     prediction_type,
-                                     PR_AUC = .estimate),
-                     by = c("prediction_method", "prediction_type")) %>%
+    dplyr::ungroup()
+
+  # calculate AUPRC
+  performance$PR_AUC <- PR_in %>%
+    dplyr::filter(prediction_type == "score") %>%
+    yardstick::pr_auc(known_gene, prediction) %>%
+    dplyr::select(prediction_method,
+                  score_PR_AUC = .estimate) %>%
     dplyr::ungroup()
 
   # get summary statistics (various performance metrics)
   performance$summary <- pred %>%
-    # score is not binary, cannot be summarised, filter out
-    dplyr::filter(!grepl("score", prediction_type)) %>%
+    # max only (score is not binary, cannot be summarised)
+    dplyr::filter(prediction_type == "max") %>%
     dplyr::mutate(prediction = as.logical(prediction)) %>%
-    dplyr::group_by(prediction_method, prediction_type) %>%
+    dplyr::group_by(prediction_method) %>%
+    # max - confusion matrix
     dplyr::group_modify(
       ~ data.frame(True = .x %>% condition_n_gene_x_cs_pairs(known_gene),
                    Positive = .x %>% condition_n_gene_x_cs_pairs(prediction),
@@ -70,9 +72,10 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
                    FP = .x %>% condition_n_gene_x_cs_pairs(prediction & !known_gene),
                    TN = .x %>% condition_n_gene_x_cs_pairs(!prediction & !known_gene),
                    FN = .x %>% condition_n_gene_x_cs_pairs(!prediction & known_gene),
-                   n_known_genes = dplyr::filter(.x, known_gene)$symbol %>% dplyr::n_distinct())
+                   n_known_genes = .x %>% condition_n_genes(known_gene))
     ) %>%
     dplyr::rowwise() %>%
+    # max - performance metrics
     dplyr::mutate(p_value = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$p.value,
                   OR = fisher.test(matrix(c(TP,FP,FN,TN),2,2),alternative="greater")$estimate,
                   Precision = TP / (TP + FP),
@@ -80,13 +83,9 @@ get_PR <- function(annotations, vxt_master, known_genes, pcENSGs, max_n_known_ge
                   Sensitivity = TP / (TP + FN),
                   Specificity = TN / (TN + FP),
                   F_score = 2 * ((Precision * Recall) / (Precision + Recall))) %>%
-    dplyr::ungroup() %>%
-    # add area under curve metric to summary
-    dplyr::full_join(performance$PR %>%
-                       dplyr::distinct(prediction_method,
-                                       prediction_type,
-                                       PR_AUC),
-                     by = c("prediction_method", "prediction_type"))
+    # score - PR_AUC
+    dplyr::left_join(performance$PR_AUC, by = "prediction_method") %>%
+    dplyr::ungroup()
 
   return(performance)
 
