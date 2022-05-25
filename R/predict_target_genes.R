@@ -349,7 +349,7 @@ predict_target_genes <- function(trait = NULL,
         ggplot2::facet_wrap(. ~ prediction_method) +
         ggplot2::geom_text(data = performance$summary %>%
                              dplyr::transmute(prediction_method,
-                                              label = round(score_PR_AUC, 3),
+                                              label = round(score_PR_AUC, 3)),
                            mapping = ggplot2::aes(x = -Inf, y = Inf, label = score_PR_AUC),
                            hjust = 0, vjust = 1, size = 5) +
         ggplot2::theme_bw() +
@@ -365,6 +365,7 @@ predict_target_genes <- function(trait = NULL,
         ggrepel::geom_text_repel(min.segment.length = 0, max.overlaps = Inf) +
         title_plot
     )
+
     # F score max
     print(
       performance$summary %>%
