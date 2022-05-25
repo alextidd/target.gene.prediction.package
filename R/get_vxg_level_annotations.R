@@ -17,6 +17,10 @@ get_vxg_level_annotations <- function(variants,
     dplyr::ungroup() %>%
     dplyr::distinct()
 
+  vxg$closest <- distance %>%
+    dplyr::filter(inv_distance_rank == 1) %>%
+    dplyr::transmute(cs, variant, symbol)
+
   vxg$inv_distance <- distance %>%
     dplyr::transmute(cs, variant, symbol,
                      value = inv_distance)
